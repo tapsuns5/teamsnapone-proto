@@ -1,0 +1,87 @@
+@import "../config/index.scss";
+
+//------------------------------------------------------------//
+
+// * Select Box
+// * 1. Select Box Settings
+// * 2. Select Box
+
+//------------------------------------------------------------//
+
+// * 1. Select Box Settings
+
+$SelectBox-bg-color: $cu-foreground--dark !default;
+$SelectBox-text-color: $cu-info !default;
+$SelectBox-height: $su-xlarge !default;
+$SelectBox-indicator-width: scaleGrid(4);
+
+// * 2. Select Box
+
+.SelectBox {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+
+  &:after {
+    @include ss-pika;
+    content: '▾';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    margin: auto;
+    width: $SelectBox-indicator-width;
+    color: scaleColor($cu-info, 6);
+    font-size: $tu-xsmall-fontSize;
+    height: ( $SelectBox-height - $su-small );
+    line-height: ( $SelectBox-height - $su-xsmall );
+    text-align: center;
+    border-left: $border-width-small solid $cu-divider--light;
+    pointer-events: none;
+  }
+}
+
+.SelectBox-options {
+  height: $SelectBox-height;
+  width: 100%;
+  line-height: $SelectBox-height;
+  padding-right: $SelectBox-indicator-width + $su-small;
+  padding-left: $su-small;
+  color: $cu-info;
+  background-color: $SelectBox-bg-color;
+  font-family: $base-font-family;
+  border-radius: $border-radius-medium;
+  border: 1px solid $cu-divider;
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+
+  // Hide IE select arrow
+  &::-ms-expand {
+    display: none;
+  }
+
+  // Focus state
+  &:focus {
+    border-color: $cu-primary;
+    outline: none;
+  }
+
+  &:disabled,
+  &.is-disabled {
+    color: $cu-divider--light;
+    cursor: not-allowed;
+  }
+}
+
+// * Deprecated - No longer have a JS dependency
+.SelectBox-text {
+  display: none;
+}
+
+.SelectBox--large .SelectBox-options {
+  font-size: $tu-large-fontSize;
+  height: $su-xxlarge;
+  line-height: $su-xxlarge;
+}

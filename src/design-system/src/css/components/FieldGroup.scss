@@ -1,0 +1,66 @@
+@import "../config/index.scss";
+
+//------------------------------------------------------------//
+
+// * Form Group
+// * 1. Settings
+// * 2. Base styles
+// * 3. States
+// * 4. Modifiers
+
+//------------------------------------------------------------//
+
+// * 1. Form Group Settings
+
+$FieldGroup-font-size: $tu-base-fontSize;
+
+// * 2. Form Group Base Styles
+
+.FieldGroup {
+  margin-bottom: $su-medium;
+  position: relative;
+}
+
+.FieldGroup-label {
+  display: block;
+  padding-bottom: $su-xsmall;
+  font-size: $FieldGroup-font-size;
+  font-weight: $tu-semibold-fontWeight;
+}
+
+.FieldGroup-message {
+  color: $cu-info--light;
+  font-size: $FieldGroup-font-size;
+  padding-top: $su-xsmall;
+  margin-bottom: 0;
+}
+
+.FieldGroup-message--error {
+  color: $cu-negative;
+}
+
+.FieldGroup-validation {
+  display: none;
+  color: $cu-positive;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+// * 3. Form Group States
+
+.FieldGroup.is-notValid {
+  .Input, .Checkbox-label:before, .SelectBox-options, textarea, .Checkbox--pill .Checkbox-label {
+    border-color: $cu-negative;
+  }
+}
+
+.FieldGroup.is-valid {
+  .FieldGroup-validation {
+    display: block;
+  }
+
+  .FieldGroup-label {
+    padding-left: $su-medium;
+  }
+}

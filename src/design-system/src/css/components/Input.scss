@@ -1,0 +1,110 @@
+@import "../config/index.scss";
+
+//------------------------------------------------------------//
+
+// * Input
+// * 1. Input Settings
+// * 2. Base Input
+
+// Notes:
+// * all the classic element styling is coming through
+
+// TODO : Refactor classic form styling to resolve conflicts
+
+//------------------------------------------------------------//
+
+// * 1. Input Settings
+
+$form-input-height: $su-xlarge !default;
+$form-input-line-height: $su-xlarge - 2 !default;
+$form-input-bg-color: $cu-foreground--dark !default;
+
+// * 2. Base Input
+
+.Input {
+  cursor: text;
+  color: $cu-info;
+  display: block;
+  width: 100%;
+  height: $form-input-height;
+  line-height: $form-input-line-height;
+  padding: 0 $su-small;
+  box-sizing: border-box;
+  box-shadow: none;
+  background-color: $form-input-bg-color;
+  border: $border-width-small solid $cu-divider;
+  border-radius: $border-radius-medium;
+  font-family: inherit;
+  font-size: $tu-base-fontSize;
+  transition: all ease 0.2s;
+
+  &:disabled {
+    background: $cu-middleground--dark;
+    color: $ts-grey;
+    cursor: not-allowed;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: $cu-primary;
+  }
+
+  &::-ms-clear {
+    display: none;
+  }
+}
+
+// Hack to overrid webkit autofill styles
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px $cu-foreground--dark inset;
+  -webkit-text-fill-color: $cu-info;
+}
+
+.Input--large {
+  font-size: $tu-large-fontSize;
+  height: $su-xxlarge;
+  line-height: $su-xxlarge;
+}
+
+$Input--showHideWidth: scaleGrid(7); // 56px
+
+.Input--showHide {
+  padding-right: $Input--showHideWidth;
+  // Set padding to width of show/hide control
+  // so native field controls are not covered
+  // (such as Safari's password manager tool)
+}
+
+.Input-showHideButton {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: $Input--showHideWidth;
+  height: 100%;
+  background-color: transparent;
+  border: none;
+  color: $cu-info--light;
+  border-radius: 0 $border-radius-medium $border-radius-medium 0;
+  font-size: $tu-base-fontSize;
+  font-weight: normal;
+  font-family: inherit;
+  line-height: 1;
+  padding: $su-small;
+  transition: all ease 200ms;
+  cursor: pointer;
+}
+
+.Input-showHideButton:hover {
+  background-color: transparent;
+  color: $cu-info;
+}
+
+.Input-showHideButton:focus {
+  outline: none;
+  border: solid 1px $cu-primary;
+  background-color: transparent;
+  color: $cu-info;
+}

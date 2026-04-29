@@ -1,0 +1,257 @@
+@use "sass:math";
+
+@import "../config/index.scss";
+
+//------------------------------------------------------------//
+
+// * StepNav Component
+// * 1. Settings
+// * 2. Define Default StepNav
+// * 3. Small Modifier
+// * 4. Titled Modifier
+
+// TODO : document global dependencies
+// TODO : further responsive cleanup, especially on titled setp nav
+
+//------------------------------------------------------------//
+
+// * 1. Settings
+
+$StepNav-size: scaleGrid(7);
+$StepNav-spacing: scaleGrid(-1);
+$StepNav-titleWidth: 150px;
+
+$StepNav-size--small: scaleGrid(5);
+$StepNav-spacing--small: scaleGrid(-2);
+
+$StepNav-size--xsmall: scaleGrid(3);
+$StepNav-spacing--xsmall: scaleGrid(-3);
+
+// * Define sizes
+
+@mixin StepNav--defineSize($size, $spacing) {
+
+  // define paddedWidth based on size and spacing
+  $paddedWidth: $size + ($spacing * 2);
+
+  .StepNav-steps {
+    padding-left: $paddedWidth;
+  }
+
+  .StepNav-step {
+    &:before {
+      width: calc(100% - #{$paddedWidth});
+      height: $spacing;
+      top: math.div($size, 2);
+      right: $paddedWidth;
+    }
+    &.is-active,
+    &.is-enabled a:hover {
+      .StepNav-stepIcon {
+        box-shadow: 0 0 math.div($spacing, 2) $cu-primary--dark inset;
+      }
+    }
+    &.is-enabled a:hover {
+      .StepNav-stepIcon {
+        box-shadow: 0 0 math.div($spacing, 2) $cu-primary--dark inset;
+      }
+    }
+  }
+
+  .StepNav-stepLink {
+    padding: 0 $spacing;
+  }
+
+  .StepNav-stepTitle {
+    width: $StepNav-titleWidth;
+    left: calc( 0px - #{math.div($StepNav-titleWidth - $paddedWidth, 2)});
+    padding-top: $spacing;
+  }
+
+  .StepNav-stepIcon {
+    font-size: $size * .4;
+    border: {
+      width: $spacing;
+    }
+    height: $size;
+    width: $size;
+    border-radius: math.div($size, 2);
+    padding: $size * .25;
+  }
+}
+
+// * 2. Define Default StepNav
+
+.StepNav {
+  padding-bottom: $su-large;
+}
+
+@include StepNav--defineSize($StepNav-size, $StepNav-spacing);
+
+.StepNav-steps {
+  position: relative;
+  padding-bottom: $su-xsmall;
+  display: flex;
+}
+
+.StepNav-step {
+  position: relative;
+  list-style: none;
+  display: block;
+  padding: 0;
+  flex: auto;
+
+  &:before {
+    content: '';
+    display: block;
+    position: absolute;
+    background: $cu-divider;
+  }
+
+  &:first-child {
+    position: absolute;
+    left: 0;
+    top: 0;
+    .StepNav-stepLink {
+      float: left;
+    }
+    &:before {
+      display: none;
+    }
+  }
+
+  &.is-enabled {
+    .StepNav-stepIcon,
+    .StepNav-stepTitle {
+      color: $cu-primary;
+      transition: color .35s ease-in-out;
+    }
+    .StepNav-stepIcon {
+      border-color: $cu-primary;
+      transition: border-color .35s ease-in-out;
+    }
+    &:before {
+      background-color: $cu-primary;
+      transition: background-color .35s ease-in-out;
+    }
+  }
+
+  &.is-active,
+  &.is-enabled .StepNav-stepLink:hover {
+    .StepNav-stepIcon {
+      color: $ts-white;
+      border-color: $cu-divider;
+      background-color: $cu-primary;
+    }
+  }
+  &.is-enabled .StepNav-stepLink:hover {
+    .StepNav-stepIcon {
+      color: $ts-white;
+      border-color: $cu-divider;
+      background-color: $cu-primary;
+    }
+  }
+}
+
+.StepNav-stepLink {
+  float: right;
+  position: relative;
+  z-index: 10;
+  color: $cu-divider;
+}
+
+.StepNav-stepTitle {
+  display: block;
+  text-align: center;
+  margin: 0 auto;
+  color: $cu-divider;
+  font-family: $tu-openSans-fontFamily;
+  font-size: $tu-base-fontSize;
+  position: absolute;
+  top: 100%;
+}
+
+.StepNav-stepIcon {
+  background: #fff;
+  box-sizing: content-box;
+  line-height: 1;
+  display: inline-block;
+  box-sizing: border-box;
+  vertical-align: middle;
+  text-align: center;
+  font-weight: bold;
+
+  border: {
+    style: solid;
+    color: $cu-divider;
+  }
+}
+
+// * 5. Modifier : Small StepNav
+
+.StepNav--small {
+
+  @include StepNav--defineSize($StepNav-size--small, $StepNav-spacing--small);
+
+  .StepNav-stepTitle {
+    display: none;
+  }
+
+}
+
+// * 5.5 Modifier : X-Small StepNav
+
+.StepNav--xsmall {
+
+  @include StepNav--defineSize($StepNav-size--xsmall, $StepNav-spacing--xsmall);
+
+  .StepNav-stepTitle {
+    display: none;
+  }
+
+}
+
+// * 6. Modifier : Titled Modifier
+
+.StepNav--titled {
+
+  @include clear;
+
+  .StepNav-title,
+  .StepNav-steps {
+    float: left;
+  }
+
+  .StepNav-title {
+    width: 55%
+  }
+
+  .StepNav-steps {
+    width: 45%;
+  }
+
+  .StepNav-step:first-child:before {
+    display: block;
+  }
+}
+
+.StepNav-title {
+  overflow: hidden;
+}
+
+.StepNav-titleText {
+  position: relative;
+  margin: 0;
+  padding-right: $su-small;
+  display: inline-block;
+  line-height: $StepNav-size;
+  &:before {
+    content: '';
+    position: absolute;
+    top: math.div($StepNav-size, 2);
+    left: 100%;
+    height: $StepNav-spacing;
+    width: 1000%;
+    background: $cu-primary;
+  }
+}

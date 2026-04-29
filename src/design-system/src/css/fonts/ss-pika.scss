@@ -1,0 +1,486 @@
+@charset "UTF-8";
+
+//*///////////////////////////////
+
+//      SS-Pika Icon Set
+
+//  * Symbolset
+//  * www.symbolset.com
+//  * Copyright © 2012 Oak Studios LLC
+
+// note : might be best to refactor this
+// to use standard class selectors
+
+//*///////////////////////////////
+
+@font-face {
+  font-family: "SSPika";
+  src: url('https://teamsnap-ui.teamsnap.com/assets/fonts/ss-pika/ss-pika.eot'),
+       url('https://teamsnap-ui.teamsnap.com/assets/fonts/ss-pika/ss-pika.woff') format("woff"),
+       url('https://teamsnap-ui.teamsnap.com/assets/fonts/ss-pika/ss-pika.ttf') format("truetype"),
+       url('https://teamsnap-ui.teamsnap.com/assets/fonts/ss-pika/ss-pika.svg') format("svg");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@mixin ss-pika {
+  font-family:                 "SSPika";
+  font-style:                    normal;
+  font-weight:                   normal;
+  text-decoration:                 none;
+  text-rendering:    optimizeLegibility;
+  line-height:                  inherit;
+  -webkit-font-feature-settings: "liga";
+  -moz-font-feature-settings:  "liga=1";
+  -moz-font-feature-settings:    "liga";
+  -ms-font-feature-settings:   "liga" 1;
+  -o-font-feature-settings:      "liga";
+  font-feature-settings:         "liga";
+  -webkit-font-smoothing:   antialiased;
+  vertical-align:                middle;
+  font-size:                        90%;
+}
+
+[class*="ss-"] {
+  &:before {
+    @include ss-pika;
+    padding-right: 3px;
+  }
+  &:after {
+    padding-left: 3px;
+  }
+  img {
+    display: none;
+  }
+}
+
+[class*="ss-textfile"]:before {
+  content:'';
+}
+[class*="ss-up"]:before {
+  content:'⬆';
+}
+[class*="ss-check"]:before {
+  content:'✓';
+}
+[class*="ss-right"]:after,
+[class*="ss-right-after"]:after {
+  content:'➡';
+}
+[class*="ss-left"]:before {
+  content:'⬅';
+}
+[class*="ss-navigateup"]:before {
+  content:'';
+}
+[class*="ss-navigateright"]:after,
+[class*="ss-navigateright-after"]:after {
+  content:'▻';
+}
+[class*="ss-navigatedown"]:before {
+  content:'';
+}
+[class*="ss-navigateleft"]:before {
+  content:'◅';
+}
+[class*="ss-dropdown"]:before,
+[class*="ss-dropdown-after"]:after {
+  content:'▾';
+}
+[class*="ss-directright"]:before,
+[class*="ss-directright-after"]:after {
+  content:'▹';
+}
+[class*="ss-directleft"]:before {
+  content:'◃';
+}
+// used for sortable (rotated) so keepin the after
+[class*="ss-leftright"]:before,
+[class*="ss-leftright-after"]:after {
+  content:'⬌';
+}
+[class*="ss-search"]:before {
+  content:'🔎';
+}
+[class*="ss-searchbook"]:before {
+  content:'';
+}
+[class*="ss-binoculars"]:before {
+  content:'';
+}
+[class*="ss-attach"]:before {
+  content:'📎';
+}
+[class*="ss-move"]:before {
+  content:'';
+}
+[class*="ss-erase"]:before {
+  content:'✐';
+}
+[class*="ss-write"]:before,
+[class*="ss-draw"]:before {
+  content:'✏';
+}
+[class*="ss-lock"]:before {
+  content:'🔒';
+}
+[class*="ss-unlock"]:before {
+  content:'🔓';
+}
+[class*="ss-ban"]:before {
+  content:'🚫';
+}
+[class*="ss-new"]:before {
+  content:'🆕';
+}
+[class*="ss-tag"]:before {
+  content:'';
+}
+[class*="ss-flag"]:before {
+  content:'⚑';
+}
+[class*="ss-star"]:before {
+  content:'⋆';
+}
+[class*="ss-medal"]:before {
+  content:'';
+}
+[class*="ss-ribbon"]:before {
+  content:'🎀';
+}
+[class*="ss-layers"]:before {
+  content:'';
+}
+[class*="ss-checkclipboard"]:before {
+  content:'';
+}
+[class*="ss-linechartclipboard"]:before {
+  content:'';
+}
+[class*="ss-cursor"]:before {
+  content:'';
+}
+[class*="ss-headset"] {
+  content:'';
+}
+[class*="ss-megaphone"]:before {
+  content:'📢';
+}
+[class*="ss-rss"]:before {
+  content:'';
+}
+[class*="ss-replay"]:before {
+  content:'↩';
+}
+[class*="ss-refresh"]:before {
+  content:'↻';
+}
+[class*="ss-send"]:before {
+  content:'';
+}
+[class*="ss-mail"]:before {
+  content:'✉';
+}
+[class*="ss-inbox"]:before {
+  content:'📥';
+}
+[class*="ss-outbox"]:before {
+  content:'📤';
+}
+[class*="ss-chat"]:before {
+  content:'💬';
+}
+[class*="ss-user"]:before {
+  content:'👤';
+}
+[class*="ss-users"]:before {
+  content:'👥';
+}
+[class*="ss-femaleuser"]:before {
+  content:'👧';
+}
+[class*="ss-usergroup"]:before {
+  content:'';
+}
+// used on registration (maybe rethink usage)
+[class*="ss-adduser"]:before {
+  content:'';
+}
+[class*="ss-delete"]:before {
+  content:'␡';
+}
+[class*="ss-deleteuser"]:before {
+  content:'';
+}
+[class*="ss-cart"]:before {
+  content:'';
+}
+[class*="ss-creditcard"]:before {
+  content:'💳';
+}
+[class*="ss-dispensecash"]:before {
+  content:'';
+}
+[class*="ss-coins"]:before {
+  content:'';
+}
+[class*="ss-bankcheck"]:before {
+  content:'';
+}
+[class*="ss-piggybank"]:before {
+  content:'';
+}
+[class*="ss-moneybag"]:before {
+  content:'💰';
+}
+[class*="ss-tip"]:before {
+  content:'';
+}
+[class*="ss-percent"]:before {
+  content:'%';
+}
+[class*="ss-bank"]:before {
+  content:'🏦';
+}
+[class*="ss-scales"]:before {
+  content:'⚖';
+}
+[class*="ss-upwardsbarchart"]:before {
+  content:'';
+}
+[class*="ss-analytics"]:before {
+  content:'';
+}
+[class*="ss-upwardslinechart"]:before {
+  content:'📈';
+}
+[class*="ss-stock"]:before {
+  content:'';
+}
+[class*="ss-form"]:before {
+  content:'';
+}
+[class*="ss-home"]:before {
+  content:'⌂';
+}
+[class*="ss-earth"]:before {
+  content:'🌎';
+}
+[class*="ss-location"]:before {
+  content:'';
+}
+[class*="ss-database"]:before {
+  content:'';
+}
+[class*="ss-camera"]:before {
+  content:'📷';
+}
+[class*="ss-picture"]:before {
+  content:'🌄';
+}
+[class*="ss-video"]:before {
+  content:'📹';
+}
+[class*="ss-playvideo"]:before {
+  content:'';
+}
+[class*="ss-play"]:before {
+  content:'▶';
+}
+[class*="ss-pause"]:before {
+  content:'';
+}
+[class*="ss-page"]:before {
+  content:'';
+}
+[class*="ss-notice"]:before {
+  content:'';
+}
+[class*="ss-rows"]:before {
+  content:'';
+}
+[class*="ss-columns"]:before {
+  content:'';
+}
+[class*="ss-thumbnails"]:before {
+  content:'';
+}
+[class*="ss-desktop"]:before {
+  content:'💻';
+}
+[class*="ss-smartphone"]:before {
+  content:'';
+}
+[class*="ss-upload"]:before {
+  content:'';
+}
+[class*="ss-uploadcloud"]:before {
+  content:'';
+}
+[class*="ss-merge"]:before {
+  content:'';
+}
+[class*="ss-sync"]:before {
+  content:'';
+}
+[class*="ss-file"]:before {
+  content:'📄';
+}
+[class*="ss-download"]:before {
+  content:'';
+}
+[class*="ss-downloadcloud"]:before {
+  content:'';
+}
+[class*="ss-downloadbox"]:before {
+  content:'';
+}
+[class*="ss-downloadfolder"]:before {
+  content:'';
+}
+// import file & export file can probably go
+[class*="ss-importfile"]:before {
+  content:'';
+}
+[class*="ss-exportfile"]:before {
+  content:'';
+}
+[class*="ss-doc"]:before {
+  content:'';
+}
+[class*="ss-folder"]:before {
+  content:'📁';
+}
+[class*="ss-openfolder"]:before {
+  content:'📂';
+}
+[class*="ss-lockfolder"]:before {
+  content:'';
+}
+[class*="ss-picturefolder"]:before {
+  content:'';
+}
+[class*="ss-moviefolder"]:before {
+  content:'';
+}
+[class*="ss-print"]:before {
+  content:'⎙';
+}
+[class*="ss-list"]:before {
+  content:'';
+}
+// ss-action could probably be cut
+[class*="ss-action"]:before {
+  content:'';
+}
+[class*="ss-help"]:before {
+  content:'❓';
+}
+[class*="ss-info"]:before {
+  content:'ℹ';
+}
+[class*="ss-alert"]:before {
+  content:'⚠';
+}
+[class*="ss-caution"]:before {
+  content:'⛔';
+}
+[class*="ss-plus"]:before {
+  content:'+';
+}
+[class*="ss-settings"]:before {
+  content:'⚙';
+}
+[class*="ss-dashboard"]:before {
+  content:'';
+}
+[class*="ss-notifications"]:before {
+  content:'🔔';
+}
+[class*="ss-notificationsdisabled"]:before {
+  content:'🔕';
+}
+[class*="ss-clock"]:before {
+  content:'⏲';
+}
+[class*="ss-calendar"]:before {
+  content:'📅';
+}
+[class*="ss-addcalendar"]:before {
+  content:'';
+}
+[class*="ss-checkcalendar"]:before {
+  content:'';
+}
+// maybe rethink delete calendar usage
+[class*="ss-deletecalendar"]:before {
+  content:'';
+}
+// rethink the weather icons for use on home
+[class*="ss-weathervane"]:before {
+  content:'';
+}
+[class*="ss-thermometer"]:before {
+  content:'';
+}
+[class*="ss-weather"]:before {
+  content:'';
+}
+[class*="ss-cloud"]:before {
+  content:'☁';
+}
+[class*="ss-droplet"]:before {
+  content:'💧';
+}
+[class*="ss-sun"]:before {
+  content:'☀';
+}
+[class*="ss-partlycloudy"]:before {
+  content:'⛅';
+}
+[class*="ss-rain"]:before {
+  content:'☔';
+}
+[class*="ss-thunderstorm"]:before {
+  content:'⛈';
+}
+[class*="ss-umbrella"]:before {
+  content:'☂';
+}
+[class*="ss-rainbow"]:before {
+  content:'🌈';
+}
+[class*="ss-fog"]:before {
+  content:'';
+}
+[class*="ss-wind"]:before {
+  content:'';
+}
+[class*="ss-tornado"]:before {
+  content:'';
+}
+[class*="ss-snowflake"]:before {
+  content:'❄';
+}
+[class*="ss-share"]:before {
+  content:'';
+}
+[class*="ss-businessuser"]:before {
+  content:'';
+}
+
+// this should go in the future
+[class*="ss-right"],
+[class*="ss-right-after"],
+[class*="ss-navigateright"],
+[class*="ss-dropdown-after"],
+[class*="ss-leftright-after"],
+[class*="ss-directright-after"],
+[class*="ss-navigateright-after"] {
+  &:after {
+    @include ss-pika;
+  }
+  &:before {
+    display: none !important;
+  }
+}

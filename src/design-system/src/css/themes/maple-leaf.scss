@@ -1,0 +1,23 @@
+//------------------------------------------------------------//
+
+// * Custom Maple Leaf Color Settings
+
+// * 1. Load theme config
+// * 2. Load app css with new theme settings
+
+// Notes:
+// * Theme config is abstracted from the compiled theme file
+// so the config can be imported seperatly from the css
+
+//------------------------------------------------------------//
+
+// * 1. Load theme config
+
+@import "../config/index";
+
+// * 2. Load app css with new theme settings
+
+@import "../fonts/index";
+@import "../base/index";
+@import "../components/index";
+@import "../utils/index";

@@ -1,0 +1,79 @@
+//------------------------------------------------------------//
+
+// * TeamSnap-UI Mixins
+// * 1. liner-gradient()
+// * simple gradient mixin. Should only be used very lightly
+// * in support of an image background; see registration.
+// * 2. clear()
+// * method for self clearing a parent with floated children
+// * 3. ss-pika()
+// * adds needed CSS for ss-pika icons to be used
+
+// Notes:
+// * none
+
+// TODO : look into newer SASS media queries further
+// TODO : create mixin wrapper for responsive aliases
+
+//------------------------------------------------------------//
+
+// * 1. liner-gradient()
+
+// * Example
+//
+//   .Component {
+//    @include clear;
+//   }
+
+@mixin liner-gradient($from, $to, $default) {
+  background-color: $default;
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr = $from, endColorstr = $to, GradientType = 0 );
+  background-image: -webkit-gradient(linear, left top, left bottom, from($from), to($to));
+  background-image: -webkit-linear-gradient(top, $from, $to);
+  background-image: -moz-linear-gradient(top, $from, $to);
+  background-image: -o-linear-gradient(top, $from, $to);
+  background-image: linear-gradient(to bottom, $from, $to);
+}
+
+// * 2. clear()
+
+// * Example
+//
+//   .Component {
+//    @include clear;
+//   }
+
+@mixin clear {
+  &:after {
+    content: '';
+    display: block;
+    clear: both;
+  }
+}
+
+// * 3. ss-pika()
+
+// * Example
+//
+//   .Component:before {
+//     content: 'icon';
+//     @include ss-pika;
+//   }
+
+@mixin ss-pika {
+  font-family:                 "SSPika";
+  font-style:                    normal;
+  font-weight:                   normal;
+  text-decoration:                 none;
+  text-rendering:    optimizeLegibility;
+  line-height:                  inherit;
+  -webkit-font-feature-settings: "liga";
+  -moz-font-feature-settings:  "liga=1";
+  -moz-font-feature-settings:    "liga";
+  -ms-font-feature-settings:   "liga" 1;
+  -o-font-feature-settings:      "liga";
+  font-feature-settings:         "liga";
+  -webkit-font-smoothing:   antialiased;
+  vertical-align:                middle;
+  font-size:                      87.5%;
+}
