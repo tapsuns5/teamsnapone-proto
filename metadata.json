@@ -1,0 +1,6 @@
+{
+  "name": "TeamSnap Dashboard",
+  "description": "A recreation of the TeamSnap registration dashboard using their design system patterns.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
