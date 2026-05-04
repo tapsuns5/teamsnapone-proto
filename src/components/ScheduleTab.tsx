@@ -127,113 +127,423 @@ const EVTS = [
   { id: 10, date: "Sun May 4, 2026", time: "3:00 PM – 4:15 PM PT",   home: "Dodgers",   away: "",               venue: "Central Sports Park", sub: "Practice Area", type: "practice", pub: "draft",     status: "scheduled", div: "8U",   sch: "Fall 2026 Season" },
 ];
 const TDOT = { game: "#22c55e", practice: OR, other: BL };
-const WIZ_STEPS = ["Schedule Setup", "Divisions & Teams", "Availability", "Review & Generate"];
-const WIZ_SUBS = ["Name your schedule and define season boundaries", "Select which divisions to include", "Configure venues, availability, and scheduling constraints", "Confirm settings and generate the draft schedule"];
+const WIZ_STEPS = ["Details & Playing Groups", "Availability & Venues", "Review & Generate"];
+const WIZ_SUBS = ["Select divisions and configure team playing groups for scheduling", "Configure venues, availability, and scheduling constraints", "Confirm settings and generate the draft schedule"];
 
 function WStep0({ ws, set }) {
+  const [divisionDropdownOpen, setDivisionDropdownOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState({});
+  const [addTeamModalOpen, setAddTeamModalOpen] = useState(false);
+  const [selectedTeams, setSelectedTeams] = useState(new Set());
+  const [draggedTeam, setDraggedTeam] = useState(null);
+  const [draggedFromDivId, setDraggedFromDivId] = useState(null);
+
+  const toggleDivision = (divId) => {
+    set(s => {
+      const newDivs = s.divs.includes(divId) ? s.divs.filter(d => d !== divId) : [...s.divs, divId];
+      const div = DIVS.find(d => d.id === divId);
+      const newPlayingGroupNames = s.playingGroupNames || {};
+      if (!s.divs.includes(divId) && div) {
+        // Initialize the playing group name to "{division name} Divisions"
+        newPlayingGroupNames[divId] = `${div.name} Divisions`;
+      }
+      return { ...s, divs: newDivs, playingGroupNames: newPlayingGroupNames };
+    });
+  };
+
+  const removeDivision = (divId) => {
+    set(s => ({ ...s, divs: s.divs.filter(d => d !== divId) }));
+  };
+
+  const toggleGroupExpansion = (divId) => {
+    setExpandedGroups(prev => ({ ...prev, [divId]: !prev[divId] }));
+  };
+
+  const toggleTeamSelection = (team) => {
+    setSelectedTeams(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(team)) {
+        newSet.delete(team);
+      } else {
+        newSet.add(team);
+      }
+      return newSet;
+    });
+  };
+
+  const addTeamsToPlayingGroups = () => {
+    if (selectedTeams.size > 0) {
+      set(s => {
+        const newCustomTeams = s.customTeams || {};
+        const newDivs = [...s.divs];
+        const newPlayingGroupNames = s.playingGroupNames || {};
+        const newCustomDivs = s.customDivs || new Set();
+        
+        // For each selected team, find its division and add it
+        Array.from(selectedTeams).forEach(team => {
+          // Find which division this team belongs to
+          for (const div of DIVS) {
+            if (div.teams.includes(team)) {
+              // If this division is not already in ws.divs, add it as a custom division
+              if (!newDivs.includes(div.id)) {
+                newDivs.push(div.id);
+                newPlayingGroupNames[div.id] = `${div.name} Divisions`;
+                newCustomDivs.add(div.id);
+              }
+              // Add the team to the division's custom teams
+              const divTeams = newCustomTeams[div.id] || [];
+              if (!divTeams.includes(team)) {
+                newCustomTeams[div.id] = [...divTeams, team];
+              }
+              break;
+            }
+          }
+        });
+        
+        return {
+          ...s,
+          divs: newDivs,
+          customTeams: newCustomTeams,
+          playingGroupNames: newPlayingGroupNames,
+          customDivs: newCustomDivs
+        };
+      });
+    }
+    setSelectedTeams(new Set());
+    setAddTeamModalOpen(false);
+  };
+
+  const handleDragStart = (team, divId) => {
+    setDraggedTeam(team);
+    setDraggedFromDivId(divId);
+  };
+
+  const handleDropOnNotPlaying = () => {
+    if (draggedTeam && draggedFromDivId) {
+      set(s => {
+        const newNotPlayingTeams = s.notPlayingTeams || [];
+        if (!newNotPlayingTeams.includes(draggedTeam)) {
+          // Remove from custom teams if it was there
+          const newCustomTeams = s.customTeams || {};
+          if (newCustomTeams[draggedFromDivId]) {
+            newCustomTeams[draggedFromDivId] = newCustomTeams[draggedFromDivId].filter(t => t !== draggedTeam);
+          }
+          return {
+            ...s,
+            customTeams: newCustomTeams,
+            notPlayingTeams: [...newNotPlayingTeams, draggedTeam]
+          };
+        }
+        return s;
+      });
+      setDraggedTeam(null);
+      setDraggedFromDivId(null);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
   return (
     <>
-      <div style={{ background: "#fff", border: `1px solid ${G200}`, borderRadius: 10, padding: 20, marginBottom: 14 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, paddingBottom: 6, borderBottom: `1px solid ${G100}` }}>Schedule Identity</div>
-        <div style={{ fontSize: 12, color: G500, marginBottom: 12 }}>This is to identify when this schedule was made and for what it was made for.</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <div><label style={{ fontSize: 12, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Schedule Name <span style={{ color: RD }}>*</span></label><input value={ws.name} onChange={e => set(s => ({ ...s, name: e.target.value }))} style={{ padding: "8px 10px", border: `1px solid ${G300}`, borderRadius: 7, fontSize: 13, width: "100%", fontFamily: "inherit" }} /></div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <div><label style={{ fontSize: 12, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Start Date <span style={{ color: RD }}>*</span></label><input type="date" value={ws.start} onChange={e => set(s => ({ ...s, start: e.target.value }))} style={{ padding: "8px 10px", border: `1px solid ${G300}`, borderRadius: 7, fontSize: 13, width: "100%", fontFamily: "inherit" }} /></div>
-          <div><label style={{ fontSize: 12, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>End Date <span style={{ color: RD }}>*</span></label><input type="date" value={ws.end} onChange={e => set(s => ({ ...s, end: e.target.value }))} style={{ padding: "8px 10px", border: `1px solid ${G300}`, borderRadius: 7, fontSize: 13, width: "100%", fontFamily: "inherit" }} /></div>
-        </div>
-      </div>
-      <div style={{ background: "#fff", border: `1px solid ${G200}`, borderRadius: 10, padding: 20, marginBottom: 14 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, paddingBottom: 6, borderBottom: `1px solid ${G100}` }}>Game Configuration</div>
-        <div style={{ fontSize: 12, color: G500, marginBottom: 12 }}>This is just for the game times and separate padding times and availability will be handled later in the auto-schedule wizard.</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <div><label style={{ fontSize: 12, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Games per Team <span style={{ color: RD }}>*</span></label><input type="number" value={ws.gpt} onChange={e => set(s => ({ ...s, gpt: e.target.value }))} style={{ padding: "8px 10px", border: `1px solid ${G300}`, borderRadius: 7, fontSize: 13, width: "100%", fontFamily: "inherit" }} /></div>
-          <div><label style={{ fontSize: 12, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Games per Week <span style={{ color: RD }}>*</span></label><input type="number" value={ws.gpw} onChange={e => set(s => ({ ...s, gpw: e.target.value }))} style={{ padding: "8px 10px", border: `1px solid ${G300}`, borderRadius: 7, fontSize: 13, width: "100%", fontFamily: "inherit" }} /></div>
-          <div><label style={{ fontSize: 12, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Weekend Target</label><input type="number" value={ws.weekendTarget} onChange={e => set(s => ({ ...s, weekendTarget: e.target.value }))} style={{ padding: "8px 10px", border: `1px solid ${G300}`, borderRadius: 7, fontSize: 13, width: "100%", fontFamily: "inherit" }} /></div>
-          <div><label style={{ fontSize: 12, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Duration</label>
-            <select value={ws.dur} onChange={e => set(s => ({ ...s, dur: e.target.value }))} style={{ padding: "8px 10px", border: `1px solid ${G300}`, borderRadius: 7, fontSize: 13, width: "100%", background: "#fff", fontFamily: "inherit" }}>
-              {["45 min", "60 min", "75 min", "90 min"].map(o => <option key={o}>{o}</option>)}
-            </select>
-          </div>
-        </div>
-        <div style={{ height: 1, background: G100, margin: "14px 0" }} />
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, paddingBottom: 11 }}>
-          <div><div style={{ fontSize: 13, fontWeight: 600 }}>Allow Byes</div><div style={{ fontSize: 12, color: G500, marginTop: 2 }}>Permit bye weeks when there is an odd number of teams in a division.</div></div>
-          <Tog on={ws.byes} set={v => set(s => ({ ...s, byes: v }))} />
-        </div>
-        <div style={{ borderTop: `1px solid ${G100}`, paddingTop: 11, opacity: parseInt(ws.gpw) >= 2 ? 1 : 0.45 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+      <div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Schedule name</label>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>Allow Back-to-Back Games</div>
-              <div style={{ fontSize: 12, color: G500, marginTop: 2 }}>
-                When scheduling multiple games per week, controls whether games can be clustered on the same day or must be spread across different days.
-              </div>
-              {parseInt(ws.gpw) < 2 && <div style={{ fontSize: 11, color: G400, marginTop: 3 }}>Requires 2 or more games per week.</div>}
+              <input 
+                style={{ padding: "8px 12px", border: `1px solid ${G300}`, borderRadius: 8, fontSize: 14, width: "100%", fontFamily: "inherit", outline: "none" }}
+                type="text" 
+                placeholder="Ex: U10 2025 Fall" 
+                value={ws.name}
+                onChange={e => set(s => ({ ...s, name: e.target.value }))}
+              />
             </div>
-            <Tog on={ws.b2b} set={v => parseInt(ws.gpw) >= 2 && set(s => ({ ...s, b2b: v }))} />
           </div>
-          {ws.b2b && parseInt(ws.gpw) >= 2 && (
-            <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: G700 }}>Max games per day</div>
-              <input type="number" value={ws.maxGamesPerDay} onChange={e => set(s => ({ ...s, maxGamesPerDay: e.target.value }))} style={{ padding: "6px 10px", border: `1px solid ${G300}`, borderRadius: 7, fontSize: 13, width: 70, fontFamily: "inherit" }} />
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Schedule games for teams in</label>
+            <div style={{ position: "relative" }}>
+              <button 
+                type="button"
+                onClick={() => setDivisionDropdownOpen(!divisionDropdownOpen)}
+                style={{ width: "100%", padding: "8px 12px", border: `1px solid ${G300}`, borderRadius: 24, textAlign: "left", display: "flex", alignItems: "center", gap: 8, background: "#fff", minHeight: 48, cursor: "pointer" }}
+              >
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, flex: 1 }}>
+                  {ws.divs.length === 0 ? (
+                    <span style={{ color: G500, padding: "0 8px" }}>Select divisions...</span>
+                  ) : (
+                    ws.divs.map(divId => {
+                      const div = DIVS.find(d => d.id === divId);
+                      return div ? (
+                        <div key={divId} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", background: "#eff6ff", borderRadius: 8 }}>
+                          <span style={{ fontSize: 12, color: G700, fontWeight: 500 }}>{div.name}</span>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); removeDivision(divId); }}
+                            style={{ display: "grid", placeContent: "center", borderRadius: "50%", border: "1px solid transparent", color: G500, background: "transparent", width: 24, height: 24, minWidth: 24, cursor: "pointer", padding: 0 }}
+                            type="button"
+                            aria-label={`Remove ${div.name}`}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : null;
+                    })
+                  )}
+                </div>
+                <span style={{ color: G400, flexShrink: 0 }}>▼</span>
+              </button>
+              {divisionDropdownOpen && (
+                <div style={{ position: "absolute", zIndex: 10, width: "100%", marginTop: 4, background: "#fff", border: `1px solid ${G300}`, borderRadius: 16, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 8 }}>
+                  {DIVS.map(div => {
+                    const isSelected = ws.divs.includes(div.id);
+                    return (
+                      <div
+                        key={div.id}
+                        onClick={() => { toggleDivision(div.id); }}
+                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: "transparent", transition: "background 0.2s" }}
+                        onMouseEnter={e => e.currentTarget.style.background = "#f3f4f6"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <div style={{ width: 20, height: 20, border: `2px solid ${isSelected ? BL : G300}`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", background: isSelected ? BL : "#fff" }}>
+                          {isSelected && <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: G700 }}>{div.name}</span>
+                        <span style={{ fontSize: 12, color: G500 }}>({div.teams.length} teams)</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
+      {ws.divs.length > 0 && (
+        <div>
+          <div style={{ marginBottom: 12 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: G900, marginBottom: 8 }}>Playing groups</h3>
+            <p style={{ fontSize: 14, color: G500, lineHeight: 1.5 }}>Your playing group defines who match ups will be created against in the auto-scheduler. You can create matchups within one division, multiple divisions, or even one division and select specific teams from other divisions.</p>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ borderRadius: 16, border: `1px solid ${G200}`, background: "#fff", transition: "all 0.2s" }}>
+                <div style={{ padding: "12px 16px", borderRadius: "16px 16px 0 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: G900 }}>Schedule</span>
+                    <span style={{ fontSize: 12, color: G500 }}>
+                      {ws.divs.reduce((acc, divId) => {
+                        const div = DIVS.find(d => d.id === divId);
+                        if (!div) return acc;
+                        const customTeams = ws.customTeams?.[divId] || [];
+                        const notPlayingTeams = ws.notPlayingTeams || [];
+                        return acc + [...div.teams, ...customTeams].filter(team => !notPlayingTeams.includes(team)).length;
+                      }, 0)} teams
+                    </span>
+                  </div>
+                  <button onClick={() => setExpandedGroups({})} style={{ cursor: "pointer", background: "none", border: "none", padding: 4, fontSize: 20 }}>
+                    ▼
+                  </button>
+                </div>
+                <div style={{ padding: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                    {ws.divs.map(divId => {
+                      const div = DIVS.find(d => d.id === divId);
+                      if (!div) return null;
+                      const customTeams = ws.customTeams?.[divId] || [];
+                      const notPlayingTeams = ws.notPlayingTeams || [];
+                      const isCustomDiv = ws.customDivs?.has(divId);
+                      const allTeams = isCustomDiv 
+                        ? customTeams.filter(team => !notPlayingTeams.includes(team))
+                        : [...div.teams, ...customTeams].filter(team => !notPlayingTeams.includes(team));
+                      const playingGroupName = ws.playingGroupNames?.[divId] || `${div.name} Divisions`;
+                      return (
+                        <div key={divId} style={{ padding: 12, background: "#f9fafb", borderRadius: 12, border: `1px solid ${G200}` }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                            <input 
+                              type="text"
+                              value={playingGroupName}
+                              onChange={e => set(s => ({ ...s, playingGroupNames: { ...(s.playingGroupNames || {}), [divId]: e.target.value } }))}
+                              style={{ fontSize: 14, fontWeight: 600, color: G700, border: "none", background: "transparent", padding: 0, width: "auto", minWidth: 120, fontFamily: "inherit", outline: "none" }}
+                            />
+                            <button onClick={() => removeDivision(divId)} style={{ display: "grid", placeContent: "center", borderRadius: "50%", border: "1px solid transparent", color: RD, background: "transparent", width: 24, height: 24, minWidth: 24, cursor: "pointer", padding: 0 }} type="button" aria-label="Delete division">
+                              🗑
+                            </button>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 4 }}>
+                            {allTeams.map(team => (
+                              <div 
+                                key={team} 
+                                draggable 
+                                onDragStart={() => handleDragStart(team, divId)}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 16, border: `1px solid ${G200}`, cursor: "grab", transition: "all 0.2s", opacity: 1, background: "#fff", userSelect: "none", fontSize: 12 }}
+                              >
+                                <span style={{ color: G400, fontSize: 10 }}>⋮⋮</span>
+                                <span style={{ fontSize: 12, fontWeight: 500, color: G700 }}>{team}</span>
+                                <span style={{ width: 12, height: 12, borderRadius: "50%", background: G100, color: G500, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700 }}>{div.name.toLowerCase()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", border: `1px solid ${G300}`, borderRadius: 6, background: "#fff", color: G700, fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                <span style={{ fontSize: 18 }}>+</span>
+                Add custom playing group
+              </button>
+              <button type="button" onClick={() => setAddTeamModalOpen(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", border: `1px solid ${G300}`, borderRadius: 6, background: "#fff", color: G700, fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                <span style={{ fontSize: 18 }}>+</span>
+                Add a team
+              </button>
+            </div>
+            <div 
+              onDragOver={handleDragOver}
+              onDrop={handleDropOnNotPlaying}
+              style={{ borderRadius: 16, border: `1px dashed ${G400}`, background: "#f9fafb", transition: "all 0.2s" }}
+            >
+              <div style={{ padding: 16 }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: G500 }}>Not playing</span>
+                <p style={{ fontSize: 12, color: G500, marginTop: 4 }}>Teams here are excluded from schedule</p>
+              </div>
+              <div style={{ padding: "0 16px 16px" }}>
+                {ws.notPlayingTeams && ws.notPlayingTeams.length > 0 ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                    {ws.notPlayingTeams.map(team => (
+                      <div key={team} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 20, border: `1px solid ${G200}`, background: "#fff" }}>
+                        <span style={{ color: G400, fontSize: 14 }}>⋮⋮</span>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: G700 }}>{team}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 12, color: G400, fontStyle: "italic", textAlign: "center", padding: "16px 0" }}>No teams excluded from schedule</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Team Modal */}
+      {addTeamModalOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0, 0, 0, 0.5)" }}>
+          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 500, maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${G200}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: G900 }}>Add Teams to Playing Group</h3>
+              <button onClick={() => { setAddTeamModalOpen(false); setSelectedTeams(new Set()); }} style={{ display: "grid", placeContent: "center", borderRadius: "50%", border: "1px solid transparent", color: G500, background: "transparent", width: 32, height: 32, minWidth: 32, cursor: "pointer", padding: 0 }} type="button" aria-label="Close">
+                ×
+              </button>
+            </div>
+            <div style={{ padding: 16, overflowY: "auto", flex: 1 }}>
+              <p style={{ fontSize: 14, color: G500, marginBottom: 12 }}>Select teams to add to your playing groups:</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {DIVS.map(div => {
+                  // Get custom teams that were already added to this playing group
+                  const customTeams = ws.customTeams?.[div.id] || [];
+                  const existingCustomTeams = new Set(customTeams);
+                  // Filter out only custom teams that were already added, not original division teams
+                  const availableTeams = div.teams.filter(team => !existingCustomTeams.has(team));
+                  
+                  if (availableTeams.length === 0) return null;
+                  
+                  return (
+                    <div key={div.id}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: G700, marginBottom: 4 }}>{div.name}</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 12 }}>
+                        {availableTeams.map(team => (
+                          <div 
+                            key={team} 
+                            style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, border: `1px solid ${selectedTeams.has(team) ? BL : G200}`, cursor: "pointer", transition: "background 0.2s", background: selectedTeams.has(team) ? "#eff6ff" : "#fff" }}
+                          >
+                            <input 
+                              type="checkbox" 
+                              checked={selectedTeams.has(team)}
+                              onChange={() => toggleTeamSelection(team)}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ width: 16, height: 16, cursor: "pointer" }} 
+                            />
+                            <span style={{ fontSize: 14, color: G700 }}>{team}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", borderTop: `1px solid ${G200}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button onClick={() => { setAddTeamModalOpen(false); setSelectedTeams(new Set()); }} style={{ padding: "8px 16px", border: `1px solid ${G300}`, borderRadius: 6, background: "#fff", color: G700, fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                Cancel
+              </button>
+              <button onClick={addTeamsToPlayingGroups} style={{ padding: "8px 16px", border: "none", borderRadius: 6, background: BL, color: "#fff", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                Add Teams
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
 function WStep1({ ws, set }) {
-  const tog = id => set(s => { const n = s.divs.includes(id) ? s.divs.filter(d => d !== id) : [...s.divs, id]; return { ...s, divs: n }; });
-  return (
-    <>
-      <div style={{ padding: "10px 13px", borderRadius: 8, display: "flex", gap: 9, fontSize: 12, lineHeight: 1.5, marginBottom: 12, background: BLP, border: "1px solid #BFDBFE", color: "#1e40af" }}><span>ℹ</span><div>Select which divisions to include. All teams within selected divisions are included automatically.</div></div>
-      {DIVS.map(d => {
-        const sel = ws.divs.includes(d.id);
-        return (
-          <div key={d.id} style={{ border: `1px solid ${G200}`, borderRadius: 9, overflow: "hidden", marginBottom: 10 }}>
-            <div onClick={() => tog(d.id)} style={{ background: G800, color: "#fff", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}><CB on={sel} onChange={() => tog(d.id)} /><span style={{ fontSize: 13, fontWeight: 700 }}>{d.name} <span style={{ fontWeight: 400, opacity: .65 }}>({d.teams.length} teams)</span></span></div>
-              <span style={{ fontSize: 12, opacity: .55 }}>{d.teams.length} teams</span>
-            </div>
-            {sel && <div>{d.teams.map(t => <div key={t} style={{ display: "flex", alignItems: "center", padding: "7px 14px", fontSize: 13, borderBottom: `1px solid ${G100}` }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: G300, marginRight: 10, flexShrink: 0 }} />{t}</div>)}</div>}
-          </div>
-        );
-      })}
-    </>
-  );
-}
-
-function WStep2({ ws, set, subStep, setSubStep }) {
-  const [bulkModal, setBulkModal] = useState(false);
-  const DEFAULT_WINS = [{ day: "Sat", start: "08:00", end: "18:00" }, { day: "Sun", start: "10:00", end: "16:00" }];
-  const [venueWins, setVenueWins] = useState({});
-  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const full = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
+  const [expandedVenues, setExpandedVenues] = useState({});
+  const [venueTimeSlots, setVenueTimeSlots] = useState({});
+  const [venueTravelTimes, setVenueTravelTimes] = useState({});
   
   const VENS = [
-    { name: "Springfield High School", subs: [{ name: "Field 1 – Turf", max: 2 }, { name: "Field 2 – Grass", max: 1 }] },
-    { name: "Riverside Community Park", subs: [{ name: "Diamond A", max: 1 }, { name: "Diamond B", max: 1, bouts: ["Oct 5–12", "Nov 15–16"] }] },
+    { name: "Riverbend High School", subs: [{ name: "Field 1 - Turf", max: 2 }, { name: "Field 2 - Grass", max: 2 }] },
+    { name: "Riverbend Stadium", subs: [{ name: "Field 1 - Turf", max: 1 }] },
+    { name: "Memorial Park", subs: [{ name: "Field 1 - Grass", max: 1 }, { name: "Field 2 - Grass", max: 1 }] },
   ];
 
-  const getWins = key => venueWins[key] || DEFAULT_WINS;
-  const setWinsForKey = (key, updater) => setVenueWins(m => ({ ...m, [key]: typeof updater === "function" ? updater(m[key] || DEFAULT_WINS) : updater }));
-  const tog = (vi, si) => set(s => { const k = `${vi}-${si}`; const n = new Set(s.subs); n.has(k) ? n.delete(k) : n.add(k); return { ...s, subs: n }; });
-  
-  const selectedVenueNames = [...ws.subs].map(k => {
-    const [vi, si] = k.split("-").map(Number);
-    const v = VENS[vi]; if (!v) return null;
-    return `${v.subs[si]?.name} (${v.name})`;
-  }).filter(Boolean);
+  const toggleVenueExpansion = (venueName) => {
+    setExpandedVenues(prev => ({ ...prev, [venueName]: !prev[venueName] }));
+  };
 
-  const handleBulkSave = wins => {
-    setVenueWins(m => {
-      const updated = { ...m };
-      ws.subs.forEach(k => { updated[k] = wins; });
-      return updated;
+  const tog = (vi, si) => set(s => { const k = `${vi}-${si}`; const n = new Set(s.subs); n.has(k) ? n.delete(k) : n.add(k); return { ...s, subs: n }; });
+
+  const addTimeSlot = (venueKey) => {
+    setVenueTimeSlots(prev => {
+      const slots = prev[venueKey] || [{ days: ['Sat', 'Sun'], startTime: '09:00' }];
+      return { ...prev, [venueKey]: [...slots, { days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], startTime: '09:00' }] };
     });
+  };
+
+  const removeTimeSlot = (venueKey, index) => {
+    setVenueTimeSlots(prev => {
+      const slots = prev[venueKey] || [];
+      if (slots.length <= 1) return prev;
+      return { ...prev, [venueKey]: slots.filter((_, i) => i !== index) };
+    });
+  };
+
+  const updateTimeSlot = (venueKey, index, field, value) => {
+    setVenueTimeSlots(prev => {
+      const slots = prev[venueKey] || [{ days: ['Sat', 'Sun'], startTime: '09:00' }];
+      const updatedSlots = [...slots];
+      if (field === 'days') {
+        const currentDays = updatedSlots[index].days || [];
+        updatedSlots[index] = { ...updatedSlots[index], days: currentDays.includes(value) ? currentDays.filter(d => d !== value) : [...currentDays, value] };
+      } else {
+        updatedSlots[index] = { ...updatedSlots[index], [field]: value };
+      }
+      return { ...prev, [venueKey]: updatedSlots };
+    });
+  };
+
+  const calculateEndTime = (startTime) => {
+    const gameDuration = parseInt(ws.dur.replace(' min', '')) || 75;
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const totalMinutes = hours * 60 + minutes + gameDuration;
+    const endHours = Math.floor(totalMinutes / 60) % 24;
+    const endMinutes = totalMinutes % 60;
+    return `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
   };
 
   // Calculate required slots based on setup
@@ -241,153 +551,309 @@ function WStep2({ ws, set, subStep, setSubStep }) {
     const selectedDivs = DIVS.filter(d => ws.divs.includes(d.id));
     const totalTeams = selectedDivs.reduce((acc, d) => acc + d.teams.length, 0);
     const gamesPerTeam = parseInt(ws.gpt) || 10;
-    const totalGames = Math.ceil((totalTeams * gamesPerTeam) / 2); // Each game involves 2 teams
-    return totalGames;
+    const totalGames = Math.ceil((totalTeams * gamesPerTeam) / 2);
+    const gameDuration = parseInt(ws.dur) || 75;
+    return { totalGames, gameDuration };
   };
 
-  // Calculate available slots based on venue availability
-  const calculateAvailableSlots = () => {
-    let totalSlots = 0;
+  // Calculate weeks from date range
+  const calculateWeeks = () => {
     const startDate = new Date(ws.start);
     const endDate = new Date(ws.end);
     const weeks = Math.ceil((endDate - startDate) / (7 * 24 * 60 * 60 * 1000));
+    return weeks;
+  };
+
+  // Calculate available hours based on selected venues
+  const calculateAvailableHours = () => {
+    let totalHours = 0;
+    const weeks = calculateWeeks();
     
     ws.subs.forEach(key => {
-      const wins = getWins(key);
-      const slotsPerWeek = wins.reduce((acc, w) => {
-        const [startH, startM] = w.start.split(':').map(Number);
-        const [endH, endM] = w.end.split(':').map(Number);
-        const duration = (endH * 60 + endM) - (startH * 60 + startM);
-        const gameDuration = parseInt(ws.dur) || 75;
-        return acc + Math.floor(duration / gameDuration);
-      }, 0);
-      totalSlots += slotsPerWeek * weeks;
+      const [vi, si] = key.split("-").map(Number);
+      const v = VENS[vi];
+      if (v && v.subs[si]) {
+        const maxConcurrent = v.subs[si].max || 1;
+        // Assuming default 8 hours per day for simplicity
+        totalHours += 8 * 7 * weeks * maxConcurrent;
+      }
     });
     
-    return { totalSlots, weeks };
+    return totalHours;
   };
 
-  const requiredSlots = calculateRequiredSlots();
-  const { totalSlots: availableSlots, weeks } = calculateAvailableSlots();
-  const hasConflict = availableSlots < requiredSlots;
-
-  const addB = (b) => set(s => ({ ...s, bouts: [...s.bouts, b] }));
-
-  // Render sub-step content
-  const renderSubStep = () => {
-    switch (subStep) {
-      case 0: // Select Venues
-        return (
-          <>
-            <div style={{ padding: "10px 13px", borderRadius: 8, display: "flex", gap: 9, fontSize: 12, lineHeight: 1.5, marginBottom: 12, background: BLP, border: "1px solid #BFDBFE", color: "#1e40af" }}>
-              <span>ℹ</span>
-              <div>Select the venues and sub-venues (fields/courts) you want to use for scheduling games.</div>
-            </div>
-            {VENS.map((v, vi) => (
-              <div key={vi} style={{ background: "#fff", border: `1px solid ${G200}`, borderRadius: 9, marginBottom: 12, overflow: "hidden" }}>
-                <div style={{ padding: "11px 14px", background: G50, borderBottom: `1px solid ${G100}`, fontSize: 13, fontWeight: 700 }}>📍 {v.name}</div>
-                {v.subs.map((sv, si) => {
-                  const key = `${vi}-${si}`;
-                  return (
-                    <div key={si} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", borderBottom: `1px solid ${G100}` }}>
-                      <CB on={ws.subs.has(key)} onChange={() => tog(vi, si)} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{sv.name}</div>
-                        {sv.bouts && sv.bouts.map((b, bi) => <div key={bi} style={{ fontSize: 11, color: RD, marginTop: 2 }}>⛔ Venue blackout: {b}</div>)}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: G600, flexShrink: 0 }}>
-                        Max concurrent:
-                        <input type="number" defaultValue={sv.max} min={1} max={5} style={{ width: 48, padding: "4px 6px", border: `1px solid ${G300}`, borderRadius: 5, textAlign: "center", fontSize: 12, fontFamily: "inherit" }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </>
-        );
-
-      case 1: // Set Availability
-        return (
-          <>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
-              <Btn size="s" onClick={() => setBulkModal(true)}>Bulk update availability</Btn>
-            </div>
-            <BulkAvailabilityModal
-              visible={bulkModal}
-              onClose={() => setBulkModal(false)}
-              selectedVenues={selectedVenueNames}
-              onSave={handleBulkSave}
-            />
-            {VENS.map((v, vi) => (
-              <div key={vi} style={{ background: "#fff", border: `1px solid ${G200}`, borderRadius: 9, marginBottom: 12, overflow: "hidden" }}>
-                <div style={{ padding: "11px 14px", background: G50, borderBottom: `1px solid ${G100}`, fontSize: 13, fontWeight: 700 }}>📍 {v.name}</div>
-                {v.subs.map((sv, si) => {
-                  const key = `${vi}-${si}`;
-                  const sel = ws.subs.has(key);
-                  return (
-                    <VenueSubRow key={si} sv={sv} vi={vi} si={si} sel={sel} onToggle={() => tog(vi, si)} wins={getWins(key)} setWins={updater => setWinsForKey(key, updater)} />
-                  );
-                })}
-              </div>
-            ))}
-          </>
-        );
-
-      case 2: // Custom Overrides
-        return (
-          <>
-            <div style={{ padding: "10px 13px", borderRadius: 8, display: "flex", gap: 9, fontSize: 12, lineHeight: 1.5, marginBottom: 12, background: BLP, border: "1px solid #BFDBFE", color: "#1e40af" }}>
-              <span>ℹ</span>
-              <div>Add blackout dates or custom time restrictions for entire venues or specific sub-venues.</div>
-            </div>
-            
-            <div style={{ background: "#fff", border: `1px solid ${G200}`, borderRadius: 10, padding: 20, marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, paddingBottom: 6, borderBottom: `1px solid ${G100}` }}>Global Blackout Dates</div>
-              <div style={{ marginBottom: 10 }}>
-                {ws.bouts.map((b, i) => (
-                  <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: BLP, color: BLD, padding: "3px 9px", borderRadius: 5, fontSize: 12, fontWeight: 600, margin: 2 }}>
-                    {b.lbl || b.s}{b.e && b.e !== b.s ? " – " + b.e : ""}
-                    <button onClick={() => set(s => ({ ...s, bouts: s.bouts.filter((_, j) => j !== i) }))} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", fontSize: 14, lineHeight: 1, padding: 0, opacity: .7 }}>×</button>
-                  </span>
-                ))}
-              </div>
-              <BlackoutAdd onAdd={addB} />
-            </div>
-
-            <div style={{ background: "#fff", border: `1px solid ${G200}`, borderRadius: 10, padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, paddingBottom: 6, borderBottom: `1px solid ${G100}` }}>Venue-Specific Blackouts</div>
-              <div style={{ fontSize: 12, color: G500, marginBottom: 12 }}>
-                These are read-only venue-level blackouts configured in Venue Settings.
-              </div>
-              {VENS.map((v, vi) => (
-                <div key={vi} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: G700, marginBottom: 6 }}>{v.name}</div>
-                  {v.subs.map((sv, si) => (
-                    sv.bouts && sv.bouts.length > 0 ? (
-                      <div key={si} style={{ padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, marginBottom: 4, fontSize: 12, color: "#991B1B" }}>
-                        <span style={{ fontWeight: 600 }}>{sv.name}:</span> {sv.bouts.join(", ")}
-                      </div>
-                    ) : null
-                  ))}
-                  {v.subs.every(sv => !sv.bouts || sv.bouts.length === 0) && (
-                    <div style={{ fontSize: 12, color: G400, paddingLeft: 12 }}>No venue-specific blackouts</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </>
-        );
-
-      default:
-        return null;
-    }
-  };
+  const { totalGames, gameDuration } = calculateRequiredSlots();
+  const weeks = calculateWeeks();
+  const availableHours = calculateAvailableHours();
+  const neededHours = totalGames * (gameDuration / 60);
+  const hasConflict = availableHours < neededHours;
+  const additionalHoursNeeded = Math.max(0, neededHours - availableHours);
+  const gamesUnscheduled = hasConflict ? Math.floor(additionalHoursNeeded / (gameDuration / 60)) : 0;
 
   return (
     <>
-      {/* Sub-step content */}
-      {renderSubStep()}
+      {/* Schedule Rules */}
+      <div style={{ marginBottom: 12 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: G900, marginBottom: 8 }}>Schedule Rules</h3>
+        <div style={{ display: "flex", background: "#f9fafb", border: `1px solid ${G200}`, borderRadius: 16, padding: 8, flexDirection: "row", gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 120 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Games per team</label>
+            <input 
+              type="number" 
+              value={ws.gpt}
+              onChange={e => set(s => ({ ...s, gpt: e.target.value }))}
+              style={{ padding: "8px 12px", border: `1px solid ${G300}`, borderRadius: 8, fontSize: 14, width: "100%", fontFamily: "inherit", outline: "none" }}
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 120 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Max games per week</label>
+            <input 
+              type="number" 
+              value={ws.gpw}
+              onChange={e => set(s => ({ ...s, gpw: e.target.value }))}
+              style={{ padding: "8px 12px", border: `1px solid ${G300}`, borderRadius: 8, fontSize: 14, width: "100%", fontFamily: "inherit", outline: "none" }}
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 120 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Game duration</label>
+            <input 
+              type="number" 
+              value={ws.dur.replace(' min', '')}
+              onChange={e => set(s => ({ ...s, dur: e.target.value + ' min' }))}
+              style={{ padding: "8px 12px", border: `1px solid ${G300}`, borderRadius: 8, fontSize: 14, width: "100%", fontFamily: "inherit", outline: "none" }}
+            />
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "row", gap: 16, marginTop: 8, padding: 8, background: "#f9fafb", border: `1px solid ${G200}`, borderRadius: 16 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input 
+              type="checkbox" 
+              checked={ws.allowByeWeeks || false}
+              onChange={e => set(s => ({ ...s, allowByeWeeks: e.target.checked }))}
+              style={{ width: 18, height: 18, cursor: "pointer" }}
+            />
+            <span style={{ fontSize: 14, color: G700 }}>Allow bye weeks</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input 
+              type="checkbox" 
+              checked={ws.allowDoubleHeaders || false}
+              onChange={e => set(s => ({ ...s, allowDoubleHeaders: e.target.checked }))}
+              style={{ width: 18, height: 18, cursor: "pointer" }}
+            />
+            <span style={{ fontSize: 14, color: G700 }}>Allow double headers</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Time Window */}
+      <div style={{ marginBottom: 12 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: G900, marginBottom: 8 }}>Time Window</h3>
+        <div style={{ display: "flex", background: "#f9fafb", border: `1px solid ${G200}`, borderRadius: 16, padding: 8, flexDirection: "row", gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>Start date</label>
+            <input 
+              type="date" 
+              value={ws.start}
+              onChange={e => set(s => ({ ...s, start: e.target.value }))}
+              style={{ padding: "8px 12px", border: `1px solid ${G300}`, borderRadius: 8, fontSize: 14, width: "100%", fontFamily: "inherit", outline: "none" }}
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: G700, display: "block", marginBottom: 4 }}>End date</label>
+            <input 
+              type="date" 
+              value={ws.end}
+              onChange={e => set(s => ({ ...s, end: e.target.value }))}
+              style={{ padding: "8px 12px", border: `1px solid ${G300}`, borderRadius: 8, fontSize: 14, width: "100%", fontFamily: "inherit", outline: "none" }}
+            />
+          </div>
+        </div>
+        <div style={{ fontSize: 14, color: G500, marginTop: 8 }}>{weeks} weeks in schedule window</div>
+      </div>
+
+      {/* Game Slots */}
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginTop: 8 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: G900 }}>Game Slots</h3>
+          <button type="button" style={{ fontSize: 14, fontWeight: 500, color: G700, cursor: "pointer", padding: "6px 12px", border: "none", background: "none", fontFamily: "inherit" }}>Bulk edit venue availability</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {VENS.map((v, vi) => {
+            const isExpanded = expandedVenues[v.name] !== false;
+            return (
+              <div key={vi} style={{ borderRadius: 16, border: `1px solid ${G200}`, background: "#fff" }}>
+                <div style={{ padding: "12px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: G900 }}>{v.name}</span>
+                    <button style={{ display: "grid", placeContent: "center", borderRadius: "50%", border: "1px solid transparent", color: G500, background: "transparent", width: 32, height: 32, minWidth: 32, cursor: "pointer", padding: 0 }} type="button" aria-label="Edit venue">
+                      ✏
+                    </button>
+                  </div>
+                  <button onClick={() => toggleVenueExpansion(v.name)} style={{ cursor: "pointer", background: "none", border: "none", padding: 4, fontSize: 20 }}>
+                    {isExpanded ? '▼' : '▲'}
+                  </button>
+                </div>
+                {isExpanded && (
+                  <div style={{ padding: "12px 12px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+                    {v.subs.map((sv, si) => {
+                      const key = `${vi}-${si}`;
+                      const isSelected = ws.subs.has(key);
+                      return (
+                        <div key={si} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <input 
+                                type="checkbox" 
+                                checked={isSelected}
+                                onChange={() => tog(vi, si)}
+                                style={{ width: 16, height: 16, cursor: "pointer" }}
+                              />
+                              <label style={{ fontSize: 14, fontWeight: 500, color: G700, cursor: "pointer" }}>{sv.name}</label>
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <div style={{ paddingLeft: 24, padding: 12, background: "#f9fafb", borderRadius: 8, border: `1px solid ${G200}` }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: G700, marginBottom: 8 }}>Availability</div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                {(venueTimeSlots[key] || [{ days: ['Sat', 'Sun'], startTime: '09:00' }]).map((slot, slotIndex) => (
+                                  <div key={slotIndex} style={{ padding: 8, background: "#fff", borderRadius: 6, border: `1px solid ${G200}` }}>
+                                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                                        <label key={day} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                                          <input 
+                                            type="checkbox" 
+                                            checked={slot.days?.includes(day) || false}
+                                            onChange={() => updateTimeSlot(key, slotIndex, 'days', day)}
+                                            style={{ width: 16, height: 16, cursor: "pointer" }} 
+                                          />
+                                          <span style={{ fontSize: 13, color: G700 }}>{day}</span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+                                      <div style={{ flex: 1 }}>
+                                        <label style={{ fontSize: 12, color: G500, display: "block", marginBottom: 2 }}>Start time</label>
+                                        <input 
+                                          type="time" 
+                                          value={slot.startTime || '09:00'}
+                                          onChange={(e) => updateTimeSlot(key, slotIndex, 'startTime', e.target.value)}
+                                          style={{ padding: "6px 10px", border: `1px solid ${G300}`, borderRadius: 6, fontSize: 13, width: "100%", fontFamily: "inherit", outline: "none" }}
+                                        />
+                                      </div>
+                                      <span style={{ fontSize: 13, color: G500, marginTop: 14 }}>to</span>
+                                      <div style={{ flex: 1 }}>
+                                        <label style={{ fontSize: 12, color: G500, display: "block", marginBottom: 2 }}>End time</label>
+                                        <input 
+                                          type="time" 
+                                          value={calculateEndTime(slot.startTime || '09:00')}
+                                          disabled
+                                          style={{ padding: "6px 10px", border: `1px solid ${G200}`, borderRadius: 6, fontSize: 13, width: "100%", fontFamily: "inherit", outline: "none", background: "#f9fafb", color: G500 }}
+                                        />
+                                      </div>
+                                      {(venueTimeSlots[key]?.length || 1) > 1 && (
+                                        <button 
+                                          type="button" 
+                                          onClick={() => removeTimeSlot(key, slotIndex)}
+                                          style={{ fontSize: 12, color: RD, cursor: "pointer", padding: "4px 8px", border: `1px solid ${G300}`, borderRadius: 4, background: "#fff", fontFamily: "inherit", marginTop: 14 }}
+                                        >
+                                          Remove
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                                <button 
+                                  type="button" 
+                                  onClick={() => addTimeSlot(key)}
+                                  style={{ fontSize: 12, color: G700, cursor: "pointer", padding: "4px 8px", border: `1px solid ${G300}`, borderRadius: 4, background: "#fff", fontFamily: "inherit", alignSelf: "flex-start" }}
+                                >
+                                  + Add game slot
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <div style={{ fontSize: 14, color: G500, marginTop: 4 }}>Total available: 0 hrs</div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Travel Time Between Venues */}
+      {ws.allowDoubleHeaders && (
+        <div style={{ marginTop: 12 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: G900, marginBottom: 8 }}>Travel Time Between Venues</h3>
+          <div style={{ background: "#f9fafb", border: `1px solid ${G200}`, borderRadius: 16, padding: 12 }}>
+            <p style={{ fontSize: 14, color: G500, marginBottom: 12 }}>Set travel time between venues for back-to-back games</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {VENS.map((v1, vi1) => (
+                VENS.filter((v2, vi2) => vi2 > vi1).map((v2, vi2) => (
+                  <div key={`${vi1}-${vi2}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: 8, background: "#fff", borderRadius: 8 }}>
+                    <span style={{ fontSize: 14, color: G700, flex: 1 }}>{v1.name}</span>
+                    <span style={{ fontSize: 14, color: G500 }}>→</span>
+                    <span style={{ fontSize: 14, color: G700, flex: 1 }}>{v2.name}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input 
+                        type="number" 
+                        placeholder="0"
+                        min="0"
+                        value={venueTravelTimes[`${vi1}-${vi2}`] || ''}
+                        onChange={(e) => setVenueTravelTimes(prev => ({ ...prev, [`${vi1}-${vi2}`]: e.target.value }))}
+                        style={{ width: 80, padding: "6px 10px", border: `1px solid ${G300}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+                      />
+                      <span style={{ fontSize: 13, color: G500 }}>min</span>
+                    </div>
+                  </div>
+                ))
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Summary */}
+      <div style={{ marginTop: 12, borderRadius: 16, border: `1px solid ${G200}`, background: "#f9fafb", padding: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 14, color: G500 }}>Total available</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: G900 }}>{Math.round(availableHours)} hrs</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 14, color: G500 }}>Needed for all games</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: G900 }}>{Math.round(neededHours)} hrs</span>
+          </div>
+          <div style={{ borderTop: `1px solid ${G200}` }}></div>
+          {hasConflict ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, color: RD }}>
+                <span style={{ fontSize: 20 }}>⚠</span>
+                <span style={{ fontSize: 14, fontWeight: 500 }}>Insufficient venue availability</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "spaceBetween", paddingLeft: 24 }}>
+                <span style={{ fontSize: 14, color: G700 }}>Additional hours needed</span>
+                <span style={{ fontSize: 14, fontWeight: 500, color: G700 }}>{Math.round(additionalHoursNeeded)} hrs</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 24 }}>
+                <span style={{ fontSize: 14, color: G700 }}>Games unscheduled</span>
+                <span style={{ fontSize: 14, fontWeight: 500, color: G700 }}>{gamesUnscheduled} games</span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Add more venues */}
+      <div style={{ marginTop: 12 }}>
+        <button type="button" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", border: `1px solid ${G300}`, borderRadius: 6, background: "#fff", color: G700, fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+          Add more venues
+        </button>
+      </div>
     </>
   );
 }
@@ -417,10 +883,6 @@ function VenueSubRow({ sv, vi, si, sel, onToggle, wins, setWins }) {
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 600 }}>{sv.name}</div>
           {sv.bouts && sv.bouts.map((b, bi) => <div key={bi} style={{ fontSize: 11, color: RD, marginTop: 2 }}>⛔ Venue blackout: {b}</div>)}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: G600, flexShrink: 0 }}>
-          Max concurrent:
-          <input type="number" defaultValue={sv.max} min={1} max={5} style={{ width: 48, padding: "4px 6px", border: `1px solid ${G300}`, borderRadius: 5, textAlign: "center", fontSize: 12, fontFamily: "inherit" }} />
         </div>
       </div>
       {sel && (
@@ -500,7 +962,7 @@ function BulkAvailabilityModal({ visible, onClose, selectedVenues, onSave }) {
   );
 }
 
-function WStep3({ ws, mode, initialWs, onGen, generating, genPct, genMsg }) {
+function WStep2({ ws, mode, initialWs, onGen, generating, genPct, genMsg }) {
   const isEdit = mode === "edit";
   const [scope, setScope] = useState("all");
   const [keepEdits, setKeepEdits] = useState(true);
@@ -723,6 +1185,11 @@ function GenReport({ ws, onComplete, onEditSchedule }) {
   const [sortDir, setSortDir] = useState<"asc"|"desc">("desc");
   const [filterDiv, setFilterDiv] = useState("All");
   const [filterTeam, setFilterTeam] = useState("All");
+  const [expandedWeeks, setExpandedWeeks] = useState({});
+  
+  const toggleWeek = (weekNum) => {
+    setExpandedWeeks(prev => ({ ...prev, [weekNum]: !prev[weekNum] }));
+  };
 
   const totalConflicts = REPORT_TEAMS.reduce((a, t) => a + t.conflicts, 0);
   const totalB2B       = REPORT_TEAMS.reduce((a, t) => a + t.b2b, 0);
@@ -759,6 +1226,53 @@ function GenReport({ ws, onComplete, onEditSchedule }) {
   );
 
   const teamRows = REPORT_TEAMS.filter(t => filterDiv === "All" || t.div === filterDiv);
+
+  // Group games by week for schedule preview
+  const weeksData = Array.from({ length: 7 }, (_, i) => {
+    const weekNum = i + 1;
+    const gameCount = Math.floor(REPORT_GAMES.length / 7);
+    const weekGames = REPORT_GAMES.slice(i * gameCount, (i + 1) * gameCount);
+    const startDate = new Date("2025-11-01");
+    startDate.setDate(startDate.getDate() + (i * 7));
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 6);
+    return {
+      weekNum,
+      dateRange: `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      gameCount: weekGames.length,
+      isExpanded: expandedWeeks[weekNum] !== false,
+      games: weekGames.map(g => ({
+        day: new Date(g.date).toLocaleDateString('en-US', { weekday: 'short' }),
+        date: new Date(g.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        time: g.time,
+        home: g.home,
+        away: g.away,
+        venue: g.venue.split('–')[0],
+        field: g.venue.split('–')[1] || ''
+      }))
+    };
+  });
+
+  // Check for unscheduled games (conflicts or insufficient slots)
+  const hasUnscheduledGames = totalConflicts > 0;
+  const unscheduledGames = hasUnscheduledGames ? [
+    { home: "Select Team", away: "Meteors" },
+    { home: "Knights", away: "Dragons" },
+    { home: "Blazers", away: "Spartans" },
+    { home: "Warriors", away: "Cyclones" },
+    { home: "Rhinos", away: "Pirates" },
+    { home: "Ninjas", away: "Wolverines" },
+    { home: "Grizzlies", away: "Meteors" },
+    { home: "Knights", away: "Staff Team" },
+    { home: "Select Team", away: "Dragons" },
+    { home: "Warriors", away: "Blazers" },
+    { home: "Spartans", away: "Pirates" },
+    { home: "Ninjas", away: "Cyclones" },
+    { home: "Rhinos", away: "Meteors" },
+    { home: "Knights", away: "Wolverines" },
+    { home: "Grizzlies", away: "Dragons" },
+    { home: "Select Team", away: "Staff Team" },
+  ] : [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -841,38 +1355,148 @@ function GenReport({ ws, onComplete, onEditSchedule }) {
         </div>
       </div>
 
-      {/* Games table */}
-      <div style={{ background: "#fff", border: `1px solid ${G200}`, borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${G100}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>Generated Games</div>
-          <span style={{ fontSize: 11, padding: "2px 8px", background: BLP, color: BLD, borderRadius: 4, fontWeight: 600 }}>Draft</span>
+      {/* Schedule Preview */}
+      <div style={{ display: "flex", gap: 16 }}>
+        <div style={{ flex: 1 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Schedule Preview</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {weeksData.map((week) => (
+              <div key={week.weekNum} style={{ borderRadius: 16, border: `1px solid ${G200}`, background: "#fff", overflow: "hidden" }}>
+                <div 
+                  onClick={() => toggleWeek(week.weekNum)}
+                  style={{ 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "space-between", 
+                    padding: 8, 
+                    background: "#f9fafb", 
+                    cursor: "pointer",
+                    transition: "background 0.2s"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "#f3f4f6"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "#f9fafb"}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); toggleWeek(week.weekNum); }}
+                      style={{ 
+                        display: "grid", 
+                        placeContent: "center", 
+                        borderRadius: "50%", 
+                        border: "1px solid transparent", 
+                        color: G400, 
+                        background: "transparent", 
+                        width: 32, 
+                        height: 32, 
+                        minWidth: 32, 
+                        cursor: "pointer", 
+                        padding: 0 
+                      }}
+                      type="button"
+                      aria-label={week.isExpanded ? "Collapse" : "Expand"}
+                    >
+                      {week.isExpanded ? '▼' : '▶'}
+                    </button>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>Week {week.weekNum}</div>
+                      <div style={{ fontSize: 12, color: G500 }}>{week.dateRange}</div>
+                    </div>
+                  </div>
+                  <div style={{ padding: "2px 8px", borderRadius: 999, background: "#f9fafb" }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: G500 }}>{week.gameCount} games</span>
+                  </div>
+                </div>
+                {week.isExpanded && week.games.length > 0 && (
+                  <div style={{ padding: 8, display: "grid", gridTemplateColumns: "repeat(1, 1fr)", gap: 4 }}>
+                    {week.games.map((game, i) => (
+                      <div key={i} style={{ 
+                        borderRadius: 8, 
+                        border: `1px solid ${G200}`, 
+                        background: "#fff", 
+                        transition: "all 0.2s",
+                        cursor: "pointer"
+                      }}>
+                        <div style={{ padding: 8, display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ 
+                            display: "flex", 
+                            flexDirection: "column", 
+                            alignItems: "center", 
+                            justifyContent: "center", 
+                            minWidth: 72, 
+                            padding: "4px 8px", 
+                            borderRadius: 8, 
+                            background: "#f9fafb" 
+                          }}>
+                            <div style={{ fontSize: 12, color: G500, textTransform: "uppercase" }}>{game.day}</div>
+                            <div style={{ fontSize: 14, fontWeight: 700 }}>{game.date}</div>
+                            <div style={{ fontSize: 12, color: G500, marginTop: 2 }}>{game.time}</div>
+                          </div>
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: G900 }}>{game.home}</div>
+                                <div style={{ fontSize: 12, color: G500 }}>Home</div>
+                              </div>
+                            </div>
+                            <div style={{ borderTop: `1px solid ${G200}` }}></div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: G900 }}>{game.away}</div>
+                                <div style={{ fontSize: 12, color: G500 }}>Away</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: 160, textAlign: "right" }}>
+                            <div style={{ fontSize: 12, color: G500 }}>{game.venue}</div>
+                            {game.field && <div style={{ fontSize: 12, color: G500 }}>{game.field}</div>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: G800 }}>
-                {[["date","Date"],["time","Time"],["div","Division"],["home","Home"],["away","Away"],["venue","Venue"]].map(([col, lbl]) => (
-                  <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: "9px 12px", color: "rgba(255,255,255,.8)", fontWeight: 600, textAlign: "left", fontSize: 11, textTransform: "uppercase", cursor: "pointer", whiteSpace: "nowrap", userSelect: "none" }}>
-                    {lbl}<SortIcon col={col} />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedGames.map((g, i) => (
-                <tr key={g.id} style={{ background: i % 2 === 0 ? "#fff" : G50, borderBottom: `1px solid ${G100}` }}>
-                  <td style={{ padding: "8px 12px", fontWeight: 600, color: G900, whiteSpace: "nowrap" }}>{g.dateStr}</td>
-                  <td style={{ padding: "8px 12px", color: G600, whiteSpace: "nowrap" }}>{g.time}</td>
-                  <td style={{ padding: "8px 12px" }}><span style={{ background: G100, color: G600, padding: "2px 7px", borderRadius: 4, fontSize: 11, fontWeight: 600 }}>{g.div}</span></td>
-                  <td style={{ padding: "8px 12px", color: G800, fontWeight: 500 }}>{g.home}</td>
-                  <td style={{ padding: "8px 12px", color: G800, fontWeight: 500 }}>{g.away}</td>
-                  <td style={{ padding: "8px 12px", color: G500 }}>{g.venue}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+
+        {hasUnscheduledGames && (
+          <div style={{ width: 320, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div>
+              <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Unscheduled Games ({unscheduledGames.length})</h4>
+              <div style={{ border: `1px solid ${G200}`, borderRadius: 16, background: "#f9fafb", overflow: "hidden" }}>
+                <div style={{ padding: 8, borderBottom: `1px solid ${G200}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: G500, marginBottom: 2 }}>Not enough time slots</div>
+                  <div style={{ fontSize: 12, color: G500 }}>{unscheduledGames.length} games need to be scheduled</div>
+                </div>
+                <div style={{ maxHeight: 256, overflowY: "auto", background: "#fff" }}>
+                  {unscheduledGames.map((game, i) => (
+                    <div key={i} style={{ padding: 8, borderBottom: `1px solid ${G200}` }}>
+                      <div style={{ fontSize: 12, color: G500 }}><span style={{ fontWeight: 500 }}>{game.home}</span> vs <span style={{ fontWeight: 500 }}>{game.away}</span></div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: 8, background: "#f9fafb", borderTop: `1px solid ${G200}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: G500, marginBottom: 4 }}>Quick fixes:</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <button style={{ width: "100%", textAlign: "left", padding: 8, background: "#fff", border: `1px solid ${G200}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: G500 }}>Add weekend availability</div>
+                      <div style={{ fontSize: 12, color: G500 }}>Enable Saturday and Sunday for existing venues to schedule {unscheduledGames.length} more games</div>
+                    </button>
+                    <button style={{ width: "100%", textAlign: "left", padding: 8, background: "#fff", border: `1px solid ${G200}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: G500 }}>Extend season by one week</div>
+                      <div style={{ fontSize: 12, color: G500 }}>Add 7 more days to create {unscheduledGames.length} additional time slots</div>
+                    </button>
+                    <button style={{ width: "100%", textAlign: "left", padding: 8, background: "#fff", border: `1px solid ${G200}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: G500 }}>Add evening time slots</div>
+                      <div style={{ fontSize: 12, color: G500 }}>Add 6-9pm slots on enabled days to create more availability</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -880,13 +1504,12 @@ function GenReport({ ws, onComplete, onEditSchedule }) {
 
 export function WizardPanel({ mode = "new", onClose, onDone }) {
   const [step, setStep] = useState(0);
-  const [subStep, setSubStep] = useState(0);
   const [sn, setSN] = useState(mode === "new" ? "New Schedule (Draft)" : "Fall 2025 Season");
   const [generating, setGenerating] = useState(false);
   const [genPct, setGenPct] = useState(0);
   const [genMsg, setGenMsg] = useState("");
   const [genDone, setGenDone] = useState(false);
-  const [ws, setWs] = useState({ name: mode === "new" ? "New Schedule" : "Fall 2025 Season", start: "2025-09-06", end: "2025-11-22", gpt: "10", gpw: "2", weekendTarget: "2", maxGamesPerDay: "2", dur: "75 min", byes: true, b2b: false, divs: ["u8", "u10", "u12"], days: ["Sat", "Sun"], wins: [{ day: "Sat", start: "09:00", end: "12:00" }, { day: "Sat", start: "14:00", end: "17:00" }, { day: "Sun", start: "09:00", end: "15:00" }], bouts: [{ s: "Oct 11", e: "Oct 12", lbl: "Fall Break" }], subs: new Set(["0-0", "0-1", "1-0"]) });
+  const [ws, setWs] = useState({ name: mode === "new" ? "" : "Fall 2025 Season", start: "2025-09-06", end: "2025-11-22", gpt: "10", gpw: "2", weekendTarget: "2", maxGamesPerDay: "2", dur: "75 min", byes: true, b2b: false, divs: [], days: ["Sat", "Sun"], wins: [{ day: "Sat", start: "09:00", end: "12:00" }, { day: "Sat", start: "14:00", end: "17:00" }, { day: "Sun", start: "09:00", end: "15:00" }], bouts: [{ s: "Oct 11", e: "Oct 12", lbl: "Fall Break" }], subs: new Set(["0-0", "0-1", "1-0"]) });
   // Frozen snapshot of ws at mount time — used in edit mode to highlight changed fields
   const initialWs = useRef(null);
   if (initialWs.current === null) initialWs.current = JSON.parse(JSON.stringify({ ...ws, subs: [...ws.subs], divs: [...ws.divs] }));
@@ -900,119 +1523,62 @@ export function WizardPanel({ mode = "new", onClose, onDone }) {
     const tick = () => { i++; setGenPct(Math.round((i / MSGS.length) * 100)); setGenMsg(MSGS[Math.min(i, MSGS.length - 1)]); if (i < MSGS.length) setTimeout(tick, 280 + Math.random() * 150); else setTimeout(() => { setGenerating(false); setGenDone(true); }, 400); };
     setTimeout(tick, 280);
   };
-  const handleEditSchedule = () => { setGenDone(false); setStep(3); };
+  const handleEditSchedule = () => { setGenDone(false); setStep(2); };
   const handleComplete = () => { onDone(ws.name); };
   const isLast = step === WIZ_STEPS.length - 1;
   const SCHEDS = ["Fall 2025 Season", "Spring 2025 Make-ups", "New Schedule (Draft)"];
-  const SUB_STEPS = [
-    { title: "Select Venues", desc: "Choose the venues and sub-venues for scheduling" },
-    { title: "Set Availability", desc: "Define time blocks when games can be scheduled" },
-    { title: "Custom Overrides", desc: "Add blackout dates and custom time restrictions" }
-  ];
-  const isSubStepLast = step === 2 && subStep === SUB_STEPS.length - 1;
-  const steps = [<WStep0 key={0} ws={ws} set={setWs} />, <WStep1 key={1} ws={ws} set={setWs} />, <WStep2 key={2} ws={ws} set={setWs} subStep={subStep} setSubStep={setSubStep} />, <WStep3 key={3} ws={ws} mode={mode} initialWs={initialWs.current} onGen={doGen} generating={generating} genPct={genPct} genMsg={genMsg} />];
+  const steps = [<WStep0 key={0} ws={ws} set={setWs} />, <WStep1 key={1} ws={ws} set={setWs} />, <WStep2 key={2} ws={ws} mode={mode} initialWs={initialWs.current} onGen={doGen} generating={generating} genPct={genPct} genMsg={genMsg} />];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100%", background: "#fff", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100%", background: "#f9fafb", overflow: "hidden" }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <div style={{ height: 56, background: "#fff", borderBottom: `1px solid ${G200}`, display: "flex", alignItems: "center", padding: "0 24px", gap: 12, flexShrink: 0 }}>
         <div style={{ fontSize: 17, fontWeight: 700, color: G900, flex: 1 }}>{genDone ? `${ws.name} — Draft Schedule` : (mode === "new" ? "Create Game Schedule" : "Edit Schedule")}</div>
-        {genDone ? (
-          <>
-            <button onClick={handleEditSchedule} style={{ fontSize: 13, fontWeight: 600, color: G700, cursor: "pointer", padding: "7px 14px", border: `1px solid ${G300}`, borderRadius: 7, background: "#fff", fontFamily: "inherit" }}>✏ Edit Schedule</button>
-            <button onClick={handleComplete} style={{ fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", padding: "7px 16px", border: "none", borderRadius: 7, background: GR, fontFamily: "inherit" }}>✓ Complete & View</button>
-          </>
-        ) : (
-          <>
-            <button onClick={onClose} style={{ fontSize: 14, fontWeight: 500, color: BL, cursor: "pointer", padding: "6px 10px", border: "none", background: "none", fontFamily: "inherit" }}>Cancel</button>
-            <button onClick={onClose} style={{ fontSize: 14, fontWeight: 500, color: BL, cursor: "pointer", padding: "6px 10px", border: "none", background: "none", fontFamily: "inherit" }}>Save & exit</button>
-          </>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button onClick={onClose} style={{ fontSize: 14, fontWeight: 500, color: G700, cursor: "pointer", padding: "6px 12px", border: `1px solid ${G300}`, borderRadius: 6, background: "#fff", fontFamily: "inherit" }}>Cancel</button>
+          <button onClick={() => setStep(s => Math.max(0, s - 1))} disabled={generating || step === 0} style={{ fontSize: 14, fontWeight: 500, color: G700, cursor: "pointer", padding: "6px 12px", border: `1px solid ${G300}`, borderRadius: 6, background: "#fff", fontFamily: "inherit", visibility: step === 0 ? "hidden" : "visible" }}>Back</button>
+          <button onClick={() => isLast ? doGen() : setStep(s => s + 1)} disabled={generating || ws.name === ""} style={{ fontSize: 14, fontWeight: 600, color: "#fff", cursor: "pointer", padding: "6px 16px", border: "none", borderRadius: 6, background: BL, fontFamily: "inherit", opacity: (generating || ws.name === "") ? 0.5 : 1 }}>{generating ? "Generating…" : isLast ? "Generate Schedule →" : "Next"}</button>
+        </div>
       </div>
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        <div style={{ width: 260, background: "#fff", borderRight: `1px solid ${G200}`, display: "flex", flexDirection: "column", flexShrink: 0, overflowY: "auto" }}>
-          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${G200}` }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: G400, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 6 }}>Schedule</div>
-            <DD w={224} trigger={
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 11px", border: `1px solid ${G300}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", background: "#fff" }}>
-                <span>{sn}</span><span style={{ color: G400, fontSize: 11 }}>▾</span>
-              </div>
-            }>
-              {SCHEDS.map(s => <DDItem key={s} onClick={() => setSN(s)}>{s === sn && "✓ "}{s}</DDItem>)}
-              <DDSep />
-              <DDItem hi onClick={() => { setSN("New Schedule (Draft)"); setStep(0); }}>+ Create new schedule</DDItem>
-              <DDItem onClick={onClose}>← Back to schedule view</DDItem>
-            </DD>
-          </div>
-          <div style={{ flex: 1 }}>
+        <div style={{ width: 300, background: "#fff", borderRight: `1px solid ${G200}`, display: "flex", flexDirection: "column", flexShrink: 0, overflowY: "auto" }}>
+          <nav style={{ width: "100%", maxWidth: 344, height: "100%", background: "#f9fafb" }}>
             {WIZ_STEPS.map((label, i) => {
               const done = i < step, active = i === step;
-              const hasSubSteps = i === 2; // Availability step has sub-steps
               return (
                 <div key={i}>
-                  <div onClick={() => !generating && setStep(i)} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 18px", cursor: generating ? "not-allowed" : "pointer", borderBottom: `1px solid ${G100}`, background: active ? BLP : "#fff" }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0, background: done || active ? BL : "#fff", border: `2px solid ${done || active ? BL : G300}`, color: done || active ? "#fff" : G500 }}>{done ? "✓" : i + 1}</div>
-                    <div style={{ fontSize: 13, fontWeight: active ? 700 : 500, color: active ? G900 : done ? G500 : G700, flex: 1 }}>{label}</div>
-                    {done && <span style={{ color: BL, fontSize: 14, fontWeight: 700 }}>✓</span>}
-                  </div>
-                  {hasSubSteps && active && (
-                    <div style={{ paddingLeft: 59, background: "#f8f9fa" }}>
-                      {SUB_STEPS.map((sub, si) => {
-                        const subDone = si < subStep, subActive = si === subStep;
-                        return (
-                          <div key={si} onClick={() => !generating && setSubStep(si)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px 10px 18px", cursor: generating ? "not-allowed" : "pointer", borderBottom: `1px solid ${G100}`, background: subActive ? "#e0f2fe" : "#fff" }}>
-                            <div style={{ width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0, background: subDone || subActive ? BL : "#fff", border: `2px solid ${subDone || subActive ? BL : G300}`, color: subDone || subActive ? "#fff" : G500 }}>{subDone ? "✓" : si + 1}</div>
-                            <div style={{ fontSize: 12, fontWeight: subActive ? 600 : 500, color: subActive ? G900 : subDone ? G500 : G700 }}>{sub.title}</div>
-                          </div>
-                        );
-                      })}
+                  <div onClick={() => !generating && setStep(i)} style={{ display: "flex", alignItems: "center", height: 74, minHeight: 74, padding: "0 24px", cursor: generating ? "not-allowed" : "pointer", transition: "background 0.2s", background: active ? "#eff6ff" : "#fff", borderLeft: active ? "4px solid #2563eb" : "4px solid transparent", borderBottom: `1px solid ${G100}` }} role="button" tabIndex={0}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 0" }}>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 600 : 500, color: G700 }}>{label}</span>
+                      <span style={{ width: 24, height: 24, display: "block", border: "2px solid", borderRadius: "50%", position: "relative", flexShrink: 0, background: "#fff", borderColor: done || active ? "#2563eb" : G300 }}></span>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}
-          </div>
+          </nav>
         </div>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "#f8f9fa" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "#f9fafb" }}>
           {!genDone && (
-            <div style={{ padding: "22px 28px 0", flexShrink: 0 }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: G900, marginBottom: 4 }}>{step === 2 ? SUB_STEPS[subStep].title : WIZ_STEPS[step]}</div>
-              <div style={{ fontSize: 14, color: G500, marginBottom: isLast ? 10 : 18 }}>{step === 2 ? SUB_STEPS[subStep].desc : WIZ_SUBS[step]}</div>
-              {isLast && !isEdit && <div style={{ padding: "10px 13px", borderRadius: 8, display: "flex", gap: 9, fontSize: 12, lineHeight: 1.5, marginBottom: 18, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e" }}><span>⚠</span><div>All generated events start in <strong>Draft</strong> state — not visible to teams until published.</div></div>}
-              {isLast && isEdit && <div style={{ padding: "10px 13px", borderRadius: 8, display: "flex", gap: 9, fontSize: 12, lineHeight: 1.5, marginBottom: 18, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e" }}><span>⚠</span><div>Regeneration will revert <strong>all affected events to Draft</strong> state — even if previously published. You must re-publish after reviewing.</div></div>}
+            <div style={{ padding: 16, flexShrink: 0, display: "flex", justifyContent: "center" }}>
+              <div style={{ width: "100%", maxWidth: 850 }}>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: G900, marginBottom: 4 }}>{WIZ_STEPS[step]}</h2>
+                <p style={{ fontSize: 14, color: G500 }}>{WIZ_SUBS[step]}</p>
+              </div>
             </div>
           )}
-          <div style={{ flex: 1, overflowY: "auto", padding: genDone ? "24px 28px" : "0 28px 24px" }}>
-            {genDone ? <GenReport ws={ws} onComplete={handleComplete} onEditSchedule={handleEditSchedule} /> : steps[step]}
+          <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 16px" }}>
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <div style={{ width: "100%", maxWidth: 850, display: "flex", flexDirection: "column", gap: 24 }}>
+                {genDone ? <GenReport ws={ws} onComplete={handleComplete} onEditSchedule={handleEditSchedule} /> : steps[step]}
+              </div>
+            </div>
           </div>
           {!genDone && (
-            <div style={{ padding: "14px 28px", background: "#fff", borderTop: `1px solid ${G200}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-              <button onClick={() => {
-                if (step === 2 && subStep > 0) {
-                  setSubStep(s => s - 1);
-                } else {
-                  setStep(s => Math.max(0, s - 1));
-                  if (step === 2) setSubStep(0);
-                }
-              }} disabled={generating} style={{ padding: "7px 14px", fontSize: 13, fontWeight: 600, background: "#fff", border: `1px solid ${G300}`, borderRadius: 7, cursor: "pointer", visibility: step === 0 && subStep === 0 ? "hidden" : "visible", color: G700, fontFamily: "inherit" }}>← Back</button>
-              <div style={{ display: "flex", gap: 5 }}>{WIZ_STEPS.map((_, i) => <div key={i} style={{ width: i === step ? 18 : 7, height: 7, borderRadius: i === step ? 4 : 50, background: i <= step ? BL : G300, transition: "all .25s" }} />)}</div>
-              <button onClick={() => {
-                if (step === 2 && !isSubStepLast) {
-                  setSubStep(s => s + 1);
-                } else if (isLast) {
-                  doGen();
-                } else {
-                  setStep(s => s + 1);
-                  setSubStep(0);
-                }
-              }} disabled={generating} style={{ padding: "7px 14px", fontSize: 13, fontWeight: 600, background: BL, color: "#fff", border: "none", borderRadius: 7, cursor: generating ? "not-allowed" : "pointer", opacity: generating ? .6 : 1, fontFamily: "inherit" }}>{generating ? "Generating…" : isLast ? "Generate Schedule →" : "Continue →"}</button>
-            </div>
-          )}
-          {genDone && (
-            <div style={{ padding: "14px 28px", background: "#fff", borderTop: `1px solid ${G200}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-              <button onClick={handleEditSchedule} style={{ padding: "7px 14px", fontSize: 13, fontWeight: 600, background: "#fff", border: `1px solid ${G300}`, borderRadius: 7, cursor: "pointer", color: G700, fontFamily: "inherit" }}>← Back to Review</button>
-              <div style={{ fontSize: 12, color: G500 }}>All games saved as Draft</div>
-              <button onClick={handleComplete} style={{ padding: "8px 20px", fontSize: 13, fontWeight: 700, background: GR, color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>✓ Complete & View Schedule</button>
+            <div style={{ marginTop: 16, display: "flex", justifyContent: "center" }}>
+              <div style={{ width: "100%", maxWidth: 850 }}>
+                <button onClick={() => isLast ? doGen() : setStep(s => s + 1)} disabled={generating || ws.name === ""} style={{ fontSize: 14, fontWeight: 600, color: "#fff", cursor: "pointer", padding: "8px 20px", border: "none", borderRadius: 6, background: BL, fontFamily: "inherit", opacity: (generating || ws.name === "") ? 0.5 : 1, width: "100%" }}>{generating ? "Generating…" : isLast ? "Generate Schedule →" : "Continue →"}</button>
+              </div>
             </div>
           )}
         </div>
