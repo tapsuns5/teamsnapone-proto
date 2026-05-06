@@ -2,6 +2,8 @@ import React, { useState, useRef } from 'react';
 import { ChevronRight, HelpCircle, Calendar, Archive, ChevronDown, Edit2, Plus, Search, Download, Upload, User, Users, Briefcase, Settings, ChevronLeft, X, CheckCircle2, Check } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ScheduleTab from './ScheduleTab';
+import EditProgramDialog from './EditProgramDialog';
+import StandingsTab from './StandingsTab';
 
 interface ProgramDetailViewProps {
   program: {
@@ -106,6 +108,7 @@ export default function ProgramDetailView({ program, onBack }: ProgramDetailView
     teams: 'Teams',
     participants: 'Participants',
     schedule: 'Schedule',
+    standings: 'Standings',
   };
   const activeTab = tabParamMap[(tabParam || '').toLowerCase()] || 'Teams';
 
@@ -130,6 +133,12 @@ export default function ProgramDetailView({ program, onBack }: ProgramDetailView
   const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
   const [primaryContact1Email, setPrimaryContact1Email] = useState('');
   const [primaryContact2Email, setPrimaryContact2Email] = useState('');
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [enableStandings, setEnableStandings] = useState(() => {
+    // Load from localStorage on component mount
+    const saved = localStorage.getItem(`program-${program.id}-standings`);
+    return saved ? JSON.parse(saved) : false;
+  });
 
   const getEmailError = (email: string) => {
     if (!email) return null;
@@ -170,6 +179,18 @@ export default function ProgramDetailView({ program, onBack }: ProgramDetailView
     if (e.target.files && e.target.files.length > 0) {
       setUploadedFile(e.target.files[0]);
     }
+  };
+
+  const handleEditProgram = () => {
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveProgram = (programData: any) => {
+    // Save standings setting to localStorage
+    localStorage.setItem(`program-${program.id}-standings`, JSON.stringify(programData.enableStandings));
+    setEnableStandings(programData.enableStandings);
+    // Here you would typically save the other program data as well
+    console.log('Program data saved:', programData);
   };
 
   const toggleDivision = (id: string) => {
@@ -230,7 +251,10 @@ export default function ProgramDetailView({ program, onBack }: ProgramDetailView
               <button className="px-6 py-2 h-[48px] rounded-full border-2 border-admin-action-border text-admin-action-text bg-white font-bold hover:bg-admin-action-background-weak-hover transition-colors">
                 Rostering
               </button>
-              <button className="px-6 py-2 h-[48px] rounded-full bg-admin-action-background text-white font-bold hover:bg-admin-action-text-hover transition-colors shadow-sm">
+              <button 
+                onClick={handleEditProgram}
+                className="px-6 py-2 h-[48px] rounded-full bg-admin-action-background text-white font-bold hover:bg-admin-action-text-hover transition-colors shadow-sm"
+              >
                 Edit program
               </button>
             </div>
@@ -239,7 +263,7 @@ export default function ProgramDetailView({ program, onBack }: ProgramDetailView
           {/* Tabs */}
           <div className="mb-6 relative">
             <div className="flex border-b border-neutral-border overflow-x-auto hide-scrollbar">
-              {['Teams', 'Participants', 'Schedule'].map((tab) => (
+              {['Teams', 'Participants', 'Schedule', ...(enableStandings ? ['Standings'] : [])].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -282,10 +306,11 @@ export default function ProgramDetailView({ program, onBack }: ProgramDetailView
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button className="px-4 py-2 rounded-lg bg-admin-action-background text-white text-sm font-bold hover:bg-admin-action-text-hover transition-colors">
+                  <button className="px-4 py-2 rounded-full bg-admin-action-background text-white text-sm font-bold hover:bg-admin-action-text-hover transition-colors">
                     Add/Manage Divisions
                   </button>
-                  <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-admin-action-background text-white text-sm font-bold hover:bg-admin-action-text-hover transition-colors">
+                  <button className="flex items-center gap-2 px-4 py-2 rounded-full
+                   bg-admin-action-background text-white text-sm font-bold hover:bg-admin-action-text-hover transition-colors">
                     <Plus className="w-4 h-4" />
                     <span>Teams</span>
                   </button>
@@ -620,6 +645,12 @@ export default function ProgramDetailView({ program, onBack }: ProgramDetailView
           {activeTab === 'Schedule' && (
             <div className="animate-in fade-in duration-300" style={{ minHeight: 600 }}>
               <ScheduleTab hideHeader={true} />
+            </div>
+          )}
+
+          {activeTab === 'Standings' && enableStandings && (
+            <div className="animate-in fade-in duration-300">
+              <StandingsTab />
             </div>
           )}
         </div>
@@ -1329,6 +1360,21 @@ export default function ProgramDetailView({ program, onBack }: ProgramDetailView
           </div>
         </div>
       )}
+
+      {/* Edit Program Dialog */}
+      <EditProgramDialog
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        onSave={handleSaveProgram}
+        initialData={{
+          programName: program.name,
+          activeDates: program.dateRange,
+          sport: 'Baseball', // Default value
+          type: 'League', // Default value
+          enableStandings: enableStandings,
+          advancedTeamPermissions: false, // Default value
+        }}
+      />
     </div>
   );
 }

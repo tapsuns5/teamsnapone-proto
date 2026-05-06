@@ -1765,7 +1765,7 @@ function AddGameModal({ visible, onClose, defaultSch = "" }) {
   );
 }
 
-function PublishModal({ visible, onClose, mode, selCount }) {
+function PublishModal({ visible, onClose, mode, selCount, onPublish }) {
   const [notif, setNotif] = useState(true);
   const isAll = mode === "all"; const n = isAll ? 112 : selCount;
   return (
@@ -1788,7 +1788,119 @@ function PublishModal({ visible, onClose, mode, selCount }) {
           <textarea rows={3} placeholder="e.g. Your fall season schedule is now live!" style={{ padding: "8px 10px", border: `1px solid ${G300}`, borderRadius: 7, fontSize: 13, fontFamily: "inherit", width: "100%", resize: "vertical" }} />
         </div>
       </div>
-      <MFoot onClose={onClose} onOk={() => { onClose(); alert(`${n} events published!`); }} okLabel={`Publish ${n} events`} />
+      <MFoot onClose={onClose} onOk={() => { onPublish(); onClose(); }} okLabel={`Publish ${n} events`} />
+    </Modal>
+  );
+}
+
+function BulkEditModal({ visible, onClose, selectedEvents, onUpdateEvents }) {
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [eventType, setEventType] = useState("");
+  const [venue, setVenue] = useState("");
+  const [subVenue, setSubVenue] = useState("");
+  const [status, setStatus] = useState("");
+
+  const venues = ["Central Sports Park", "Brooke St. Park", "Hilltop Complex"];
+  const subVenuesMap = {
+    "Central Sports Park": ["West Stadium", "East Field", "North Diamond", "South Pitch", "Practice Area"],
+    "Brooke St. Park": ["Upper Field", "Lower Field", "Practice Area"],
+    "Hilltop Complex": ["Grandstand", "South Field", "Annex Court"]
+  };
+
+  const handleSave = () => {
+    const updates = {};
+    if (date) updates.date = date;
+    if (startTime) updates.time = startTime;
+    if (eventType) updates.type = eventType;
+    if (venue) updates.venue = venue;
+    if (subVenue) updates.sub = subVenue;
+    if (status) updates.pub = status;
+    onUpdateEvents(updates);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} onClose={onClose}>
+      <MHead title={`Bulk Edit ${selectedEvents.length} Events`} onClose={onClose} />
+      <div style={{ padding: "14px 22px" }}>
+        <p style={{ fontSize: 13, color: G600, marginBottom: 14 }}>Leave a field blank to keep the existing value for that field.</p>
+        
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Date and Start Time */}
+          <FRow label="Date">
+            <input 
+              type="date" 
+              value={date} 
+              onChange={e => setDate(e.target.value)}
+              style={{ ...PILL, width: "100%" }} 
+            />
+          </FRow>
+          
+          <FRow label="Start Time">
+            <input 
+              type="time" 
+              value={startTime} 
+              onChange={e => setStartTime(e.target.value)}
+              style={{ ...PILL, width: "100%" }} 
+            />
+          </FRow>
+
+          {/* Event Type */}
+          <FRow label="Event Type">
+            <select 
+              value={eventType} 
+              onChange={e => setEventType(e.target.value)}
+              style={{ ...PILL, width: "100%" }}
+            >
+              <option value="">-- Keep existing --</option>
+              <option value="game">Game</option>
+              <option value="practice">Practice</option>
+              <option value="other">Other</option>
+            </select>
+          </FRow>
+
+          {/* Venue */}
+          <FRow label="Venue">
+            <select 
+              value={venue} 
+              onChange={e => { setVenue(e.target.value); setSubVenue(""); }}
+              style={{ ...PILL, width: "100%" }}
+            >
+              <option value="">-- Keep existing --</option>
+              {venues.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </FRow>
+
+          {/* Sub-venue */}
+          {venue && (
+            <FRow label="Sub-venue">
+              <select 
+                value={subVenue} 
+                onChange={e => setSubVenue(e.target.value)}
+                style={{ ...PILL, width: "100%" }}
+              >
+                <option value="">-- Keep existing --</option>
+                {subVenuesMap[venue]?.map(sv => <option key={sv} value={sv}>{sv}</option>)}
+              </select>
+            </FRow>
+          )}
+
+          {/* Status */}
+          <FRow label="Status">
+            <select 
+              value={status} 
+              onChange={e => setStatus(e.target.value)}
+              style={{ ...PILL, width: "100%" }}
+            >
+              <option value="">-- Keep existing --</option>
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+            </select>
+          </FRow>
+        </div>
+      </div>
+      <MFoot onClose={onClose} onOk={handleSave} okLabel="Apply Changes" />
     </Modal>
   );
 }
@@ -2391,6 +2503,7 @@ function EditGameModal({ ev, onClose, dismissedConflicts, onDismissConflict }) {
 }
 
 export default function ScheduleTab({ hideHeader = false }) {
+  const [evts, setEvts] = useState(EVTS);
   const [overlay, setOverlay] = useState(null);
   const [modal, setModal] = useState(null);
   const [editingEv, setEditingEv] = useState(null);
@@ -2408,7 +2521,7 @@ export default function ScheduleTab({ hideHeader = false }) {
     ...DIVS.flatMap(d => [{ divHdr: true, l: d.l }, { v: d.l, l: d.l }, ...d.teams.map(t => ({ v: t, l: "\u00a0\u00a0\u00a0\u00a0" + t }))])
   ];
 
-  const filtered = EVTS.filter(ev => {
+  const filtered = evts.filter(ev => {
     if (F.div && !F.div.startsWith("All")) { if (ev.div !== F.div && ev.home !== F.div && ev.away !== F.div) return false; }
     if (F.ven && !F.ven.startsWith("All") && !ev.venue.includes(F.ven)) return false;
     if (F.type && F.type !== "All Types" && ev.type !== F.type.toLowerCase()) return false;
@@ -2553,7 +2666,7 @@ export default function ScheduleTab({ hideHeader = false }) {
               </div>
               <div className="flex items-center gap-2 text-sm text-neutral-text-medium">
                 <button className="text-neutral-icon-disabled cursor-not-allowed"><ChevronLeft size={16} /></button>
-                <span className="font-medium">1 - {filtered.length} of {EVTS.length}</span>
+                <span className="font-medium">1 - {filtered.length} of {evts.length}</span>
                 <button className="text-neutral-icon-disabled cursor-not-allowed"><ChevronRight size={16} /></button>
               </div>
             </div>
@@ -2578,13 +2691,14 @@ export default function ScheduleTab({ hideHeader = false }) {
                       <th className="p-2 text-left align-middle text-label !font-semibold min-h-[44px] font-bold border-b border-neutral-border w-[120px]">Time</th>
                       <th className="p-2 text-left align-middle text-label !font-semibold min-h-[44px] font-bold border-b border-neutral-border">Team(s)</th>
                       <th className="p-2 text-left align-middle text-label !font-semibold min-h-[44px] font-bold border-b border-neutral-border">Venue</th>
+                      <th className="p-2 text-left align-middle text-label !font-semibold min-h-[44px] font-bold border-b border-neutral-border">Status</th>
                       <th className="p-2 text-right align-middle text-label !font-semibold min-h-[44px] font-bold border-b border-neutral-border pr-4 w-[100px]"></th>
                     </tr>
                   </thead>
                   <tbody className="bg-white">
                     {Object.entries(grouped).map(([date, evs]) => [
                       <tr key={date} className="sticky top-[37px] z-10">
-                        <td colSpan={5} className="bg-white border-b border-neutral-border p-0">
+                        <td colSpan={6} className="bg-white border-b border-neutral-border p-0">
                           <div className="p-2 flex gap-2 items-center font-bold text-neutral-text">
                             <CB on={false} onChange={() => {}} /> {date}
                           </div>
@@ -2617,6 +2731,11 @@ export default function ScheduleTab({ hideHeader = false }) {
                             <td className="p-2 align-middle">
                               <p className={`${canceled ? 'line-through text-neutral-text-disabled' : ''}`}>{ev.venue}</p>
                               {ev.sub && <p className="text-xs text-neutral-text-medium">{ev.sub}</p>}
+                            </td>
+                            <td className="p-2 align-middle">
+                              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${ev.pub === 'published' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                {ev.pub === 'published' ? 'PUBLISHED' : 'DRAFT'}
+                              </span>
                             </td>
                             <td className="p-2 align-middle pr-4">
                               <div className="flex gap-2 items-center justify-end">
@@ -2652,7 +2771,7 @@ export default function ScheduleTab({ hideHeader = false }) {
           <span className="font-bold">{sel.size} selected</span>
           <div className="flex gap-2">
             <button onClick={() => setModal("pubSel")} className="px-4 py-1 rounded-full bg-white/20 hover:bg-white/30 text-sm font-bold transition-colors">Publish</button>
-            <button className="px-4 py-1 rounded-full bg-white/20 hover:bg-white/30 text-sm font-bold transition-colors">Bulk Edit</button>
+            <button onClick={() => setModal("bulkEdit")} className="px-4 py-1 rounded-full bg-white/20 hover:bg-white/30 text-sm font-bold transition-colors">Bulk Edit</button>
             <button onClick={() => { setCanceledIds(c => { const n = new Set(c); sel.forEach(id => n.add(id)); return n; }); setSel(new Set()); }} className="px-4 py-1 rounded-full bg-red-500/80 hover:bg-red-500 text-sm font-bold transition-colors">Cancel</button>
           </div>
           <button onClick={() => setSel(new Set())} className="ml-4 opacity-70 hover:opacity-100"><X size={18} /></button>
@@ -2663,9 +2782,59 @@ export default function ScheduleTab({ hideHeader = false }) {
       <BalanceModal visible={modal === "balance"} onClose={() => setModal(null)} onTeamF={t => sf("div", t)} />
       {modal === "addGame" && <AddGameModal visible={true} onClose={() => setModal(null)} defaultSch={F.sch && !F.sch.startsWith("All") ? F.sch : ""} />}
       {editingEv && <EditGameModal ev={editingEv} onClose={() => setEditingEv(null)} dismissedConflicts={dismissedConflicts} onDismissConflict={id => setDismissedConflicts(s => { const n = new Set(s); n.add(id); return n; })} />}
-      <PublishModal visible={modal === "pubAll"} onClose={() => setModal(null)} mode="all" selCount={sel.size} />
-      <PublishModal visible={modal === "pubSel"} onClose={() => setModal(null)} mode="selected" selCount={sel.size} />
+      <PublishModal visible={modal === "pubAll"} onClose={() => setModal(null)} mode="all" selCount={sel.size} onPublish={() => {
+        setEvts(prev => prev.map(e => {
+          if (e.pub === "draft") {
+            return { ...e, pub: "published" };
+          }
+          return e;
+        }));
+      }} />
+      <PublishModal visible={modal === "pubSel"} onClose={() => setModal(null)} mode="selected" selCount={sel.size} onPublish={() => {
+        setEvts(prev => prev.map(e => {
+          if (sel.has(e.id) && e.pub === "draft") {
+            return { ...e, pub: "published" };
+          }
+          return e;
+        }));
+        setSel(new Set());
+      }} />
       <VenueUtilModal visible={modal === "venueUtil"} onClose={() => setModal(null)} />
+      <BulkEditModal 
+        visible={modal === "bulkEdit"} 
+        onClose={() => setModal(null)} 
+        selectedEvents={filtered.filter(e => sel.has(e.id))}
+        onUpdateEvents={(updates) => {
+          // Update all selected events with the provided changes
+          setEvts(prev => prev.map(e => {
+            if (sel.has(e.id)) {
+              const updated = { ...e };
+              if (updates.date) {
+                // Convert date input (YYYY-MM-DD) to event date format (e.g., "Sat May 3, 2026")
+                const d = new Date(updates.date);
+                const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                updated.date = `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+              }
+              if (updates.startTime) {
+                // Parse start time and calculate end time based on existing duration
+                const [hours, minutes] = updates.startTime.split(':').map(Number);
+                const timeStr = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
+                // Extract duration from existing time (e.g., "9:00 AM – 10:15 AM PT")
+                const existingTimeParts = e.time.split(' – ');
+                const endTime = existingTimeParts[1] ? existingTimeParts[1].split(' ')[0] + ' ' + existingTimeParts[1].split(' ')[1] : '';
+                updated.time = `${timeStr} – ${endTime} PT`;
+              }
+              if (updates.type) updated.type = updates.type;
+              if (updates.venue) updated.venue = updates.venue;
+              if (updates.sub) updated.sub = updates.sub;
+              return updated;
+            }
+            return e;
+          }));
+          setSel(new Set());
+        }}
+      />
     </div>
   );
 
